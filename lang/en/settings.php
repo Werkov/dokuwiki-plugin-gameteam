@@ -2,7 +2,7 @@
 /**
  * english language file for gameteam plugin
  *
- * @author Michal Koutný <xm.koutny@gmail.com>
+ * @author Michal KoutnÃ½ <xm.koutny@gmail.com>
  */
 
 // keys need to match the config setting name

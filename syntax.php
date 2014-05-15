@@ -3,7 +3,7 @@
  * DokuWiki Plugin gameteam (Syntax Component)
  *
  * @license GPL 2 http://www.gnu.org/licenses/gpl-2.0.html
- * @author  Michal Koutný <xm.koutny@gmail.com>
+ * @author  Michal KoutnÃ½ <xm.koutny@gmail.com>
  */
 
 // must be run within Dokuwiki

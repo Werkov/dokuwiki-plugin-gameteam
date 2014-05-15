@@ -1,5 +1,5 @@
 base   gameteam
-author Michal Koutný
+author Michal KoutnÃ½
 email  xm.koutny@gmail.com
 date   2014-05-15
 name   gameteam plugin
