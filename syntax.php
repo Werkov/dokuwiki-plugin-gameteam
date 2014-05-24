@@ -99,7 +99,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         $playersInTeams = array();
 
         foreach ($teams as $team) {
-            $playersInTeams[$player['team_id']] = array();
+            $playersInTeams[$team['team_id']] = array();
         }
 
         foreach ($players as $player) {
