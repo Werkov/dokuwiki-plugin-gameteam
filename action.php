@@ -98,11 +98,21 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
     }
 
     public function handle_html_updateprofileform_output(Doku_Event &$event, $param) {
+        $user = $_SERVER['REMOTE_USER'];
+        $vs = str_pad($user, 3, '0', STR_PAD_LEFT);
         $form = $event->data;
 
-        $form->startFieldset('Týmováci');
-        $form->addElement('AHOJ');
-        $form->endFieldset();
+        $payment = sprintf('<p>Editace týmových informací ještě silně připomíná Dokuwiki, ale platební kontakt již uvádíme :-)</p>
+    <ul>
+    <li>Účet: <strong>%s</strong></li>
+    <li>Variabilní symbol <strong>%s%s</strong></li>
+    </ul>
+', $this->getConf('account'), $this->getConf('vs_prefix'), $vs);
+
+        $form->insertElement(0, $payment);
+//        $form->startFieldset('Týmováci');
+//        $form->addElement('AHOJ');
+//        $form->endFieldset();
     }
 
     public function handle_auth_user_change(Doku_Event &$event, $param) {

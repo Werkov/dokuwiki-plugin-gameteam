@@ -13,4 +13,7 @@ $conf['teamfields'] = '{
     "display_name_3": {"label": "3. člen"},
     "display_name_4": {"label": "4. člen"}    
     }';
+$conf['vs_prefix'] = '1140100';
+$conf['vs_length'] = '10';
+$conf['account'] = '2500167471/2010';
 

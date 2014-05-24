@@ -12,3 +12,5 @@ $meta['mysql_password'] = array('password');
 $meta['mysql_database'] = array('string');
 $meta['teamfields'] = array('');
 $meta['volume_id'] = array('numeric');
+$meta['vs_prefix'] = array('string');
+$meta['vs_length'] = array('numeric');
