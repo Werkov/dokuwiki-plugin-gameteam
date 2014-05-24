@@ -97,11 +97,13 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         $stmt->execute();
         $players = $stmt->fetchAll();
         $playersInTeams = array();
+
+        foreach ($teams as $team) {
+            $playersInTeams[$player['team_id']] = array();
+        }
+
         foreach ($players as $player) {
             $player['display_name'] = hsc($player['display_name']);
-            if (!isset($playersInTeams[$player['team_id']])) {
-                $playersInTeams[$player['team_id']] = array();
-            }
             $playersInTeams[$player['team_id']][] = $player;
         }
 
