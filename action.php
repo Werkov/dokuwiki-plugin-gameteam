@@ -1,13 +1,14 @@
 <?php
+
 /**
  * DokuWiki Plugin gameteam (Action Component)
  *
  * @license GPL 2 http://www.gnu.org/licenses/gpl-2.0.html
- * @author  Michal Koutný <xm.koutny@gmail.com>
+ * @author  Michal Koutný <xm.koutn7y@gmail.com>
  */
-
 // must be run within Dokuwiki
-if(!defined('DOKU_INC')) die();
+if (!defined('DOKU_INC'))
+    die();
 
 class action_plugin_gameteam extends DokuWiki_Action_Plugin {
 
@@ -19,11 +20,12 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
      */
     public function register(Doku_Event_Handler $controller) {
 
-       $controller->register_hook('HTML_LOGINFORM_OUTPUT', 'FIXME', $this, 'handle_html_loginform_output');
-       $controller->register_hook('HTML_REGISTERFORM_OUTPUT', 'FIXME', $this, 'handle_html_registerform_output');
-       $controller->register_hook('HTML_RESENDPWDFORM_OUTPUT', 'FIXME', $this, 'handle_html_resendpwdform_output');
-       $controller->register_hook('HTML_UPDATEPROFILEFORM_OUTPUT', 'FIXME', $this, 'handle_html_updateprofileform_output');
-   
+        $controller->register_hook('HTML_LOGINFORM_OUTPUT', 'BEFORE', $this, 'handle_html_loginform_output');
+        $controller->register_hook('HTML_REGISTERFORM_OUTPUT', 'BEFORE', $this, 'handle_html_registerform_output');
+        $controller->register_hook('HTML_RESENDPWDFORM_OUTPUT', 'BEFORE', $this, 'handle_html_resendpwdform_output');
+        $controller->register_hook('HTML_UPDATEPROFILEFORM_OUTPUT', 'BEFORE', $this, 'handle_html_updateprofileform_output');
+        $controller->register_hook('AUTH_USER_CHANGE', 'BEFORE', $this, 'handle_auth_user_change');
+        $controller->register_hook('MAIL_MESSAGE_SEND', 'BEFORE', $this, 'handle_mail_message_send');
     }
 
     /**
@@ -34,17 +36,100 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
      *                           handler was registered]
      * @return void
      */
-
     public function handle_html_loginform_output(Doku_Event &$event, $param) {
+        $form = $event->data;
+        $pos = $form->findElementByAttribute('name', 'u');
+        $el = & $form->getElementAt($pos);
+        $el['_text'] = $this->getLang('teamno');
     }
 
     public function handle_html_registerform_output(Doku_Event &$event, $param) {
+        $form = $event->data;
+
+        $pos = $form->findElementByAttribute('name', 'login');
+        $form->replaceElement($pos, null);
+        $form->addHidden('login', auth_plugin_gameteam::LOGIN_PLACEHOLDER);
+
+        $pos = $form->findElementByAttribute('name', 'fullname');
+        $el = & $form->getElementAt($pos);
+        $el['_text'] = $this->getLang('teamname');
+
+        $pos = $form->findElementByAttribute('name', 'email');
+        $el = & $form->getElementAt($pos);
+        $el['_text'] = $this->getLang('contactmail');
+
+        $pos = $form->findElementByAttribute('type', 'submit');
+        $submit = $form->getElementAt($pos);
+        $form->replaceElement($pos, null);
+
+        // custom fields
+        $form->startFieldset($this->getLang('teaminfo'));
+
+        $fieldspec = json_decode($this->getConf('teamfields'), true);
+        $defaultSpec = array(
+            'default' => null,
+            'type' => 'text',
+        );
+
+        foreach ($fieldspec as $name => $spec) {
+            $spec = array_merge($defaultSpec, $spec);
+
+            switch ($spec['type']) {
+                case 'bool':
+                    $field = form_makeCheckboxField($name, $spec['default'], $spec['label'], '', 'block');
+                    break;
+                default:
+                    $field = form_makeTextField($name, '', $spec['label'], '', 'block');
+                    break;
+            }
+            $form->addElement($field);
+        }
+
+        $form->endFieldset();
+
+        $form->addElement($submit);
     }
 
     public function handle_html_resendpwdform_output(Doku_Event &$event, $param) {
+        $form = $event->data;
+        $pos = $form->findElementByAttribute('name', 'login');
+        $el = & $form->getElementAt($pos);
+        $el['_text'] = $this->getLang('teamno');
     }
 
     public function handle_html_updateprofileform_output(Doku_Event &$event, $param) {
+        $form = $event->data;
+
+        $form->startFieldset('Týmováci');
+        $form->addElement('AHOJ');
+        $form->endFieldset();
+    }
+
+    public function handle_auth_user_change(Doku_Event &$event, $param) {
+        global $INPUT;
+        $data = & $event->data;
+        $type = $data['type'];
+
+        $fields = array();
+        foreach (json_decode($this->getConf('teamfields'), true) as $name => $fieldSpec) {
+            $fields[$name] = $INPUT->post->str($name);
+        }
+        switch ($type) {
+            case 'create':
+                $data['params'][] = array(); // no groups
+                $data['params'][] = $fields; // additional parameters
+                break;
+        }
+    }
+
+    public function handle_mail_message_send(Doku_Event &$event, $param) {
+        $filename = metaFN('gameteam_mails', 'txt');
+        $data = $event->data;
+        $f = fopen($filename, 'a+');
+        fwrite($f, "Email to " . $data['to'] . ", result: " . (int) $data['success'] . ".\n");
+        fwrite($f, $data['body']);
+        fwrite($f, "\n\n\n");
+        fclose($f);
     }
 
 }
