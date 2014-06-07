@@ -107,17 +107,19 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             $playersInTeams[$player['team_id']][] = $player;
         }
 
-        foreach ($teams as $team) {
-            $renderer->doc .= '<h3>' . hsc($team['name']) . ' (' . $team['login_id'] . ')</h3>';
-            $names = array_map(function($it) {
-                        return $it['display_name'];
-                    }, $playersInTeams[$team['team_id']]);
+        if (count($teams)) {
+            $renderer->doc .= '<p>Počet týmů: ' . count($teams) . '</p>';
+            foreach ($teams as $team) {
+                $renderer->doc .= '<h3>' . hsc($team['name']) . ' (' . $team['login_id'] . ')</h3>';
+                $names = array_map(function($it) {
+                            return $it['display_name'];
+                        }, $playersInTeams[$team['team_id']]);
 
-            $renderer->doc .= '<p>';
-            $renderer->doc .= implode(', ', $names);
-            $renderer->doc .= '</p>';
-        }
-        if (!count($teams)) {
+                $renderer->doc .= '<p>';
+                $renderer->doc .= implode(', ', $names);
+                $renderer->doc .= '</p>';
+            }
+        } else {
             $renderer->doc .= '<p>Žádné týmy.</p>';
         }
 
