@@ -419,7 +419,11 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         $teamId = $this->helper->getConnection()->lastInsertId();
 
         // store team -- store members
+        $memberIndicator = $this->getConf('member_indicator');
         foreach ($members as $memberData) {
+            if (trim($memberData[$memberIndicator]) == '') {
+                continue;
+            }
             $memberData['team_id'] = $teamId;
             if (!$this->helper->insert('player', $memberData)) {
                 return null;

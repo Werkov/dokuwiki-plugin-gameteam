@@ -13,6 +13,15 @@ if (!defined('DOKU_INC'))
 class action_plugin_gameteam extends DokuWiki_Action_Plugin {
 
     /**
+     * @var helper_plugin_gameteam
+     */
+    private $helper;
+
+    public function __construct() {
+        $this->helper = $this->loadHelper('gameteam');
+    }
+
+    /**
      * Registers a callback function for a given event
      *
      * @param Doku_Event_Handler $controller DokuWiki's event controller object
@@ -45,49 +54,7 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
 
     public function handle_html_registerform_output(Doku_Event &$event, $param) {
         $form = $event->data;
-
-        $pos = $form->findElementByAttribute('name', 'login');
-        $form->replaceElement($pos, null);
-        $form->addHidden('login', auth_plugin_gameteam::LOGIN_PLACEHOLDER);
-
-        $pos = $form->findElementByAttribute('name', 'fullname');
-        $el = & $form->getElementAt($pos);
-        $el['_text'] = $this->getLang('teamname');
-
-        $pos = $form->findElementByAttribute('name', 'email');
-        $el = & $form->getElementAt($pos);
-        $el['_text'] = $this->getLang('contactmail');
-
-        $pos = $form->findElementByAttribute('type', 'submit');
-        $submit = $form->getElementAt($pos);
-        $form->replaceElement($pos, null);
-
-        // custom fields
-        $form->startFieldset($this->getLang('teaminfo'));
-
-        $fieldspec = json_decode($this->getConf('teamfields'), true);
-        $defaultSpec = array(
-            'default' => null,
-            'type' => 'text',
-        );
-
-        foreach ($fieldspec as $name => $spec) {
-            $spec = array_merge($defaultSpec, $spec);
-
-            switch ($spec['type']) {
-                case 'bool':
-                    $field = form_makeCheckboxField($name, $spec['default'], $spec['label'], '', 'block');
-                    break;
-                default:
-                    $field = form_makeTextField($name, '', $spec['label'], '', 'block');
-                    break;
-            }
-            $form->addElement($field);
-        }
-
-        $form->endFieldset();
-
-        $form->addElement($submit);
+        $this->modify_user_form($form);
     }
 
     public function handle_html_resendpwdform_output(Doku_Event &$event, $param) {
@@ -110,9 +77,8 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
 ', $this->getConf('account'), $this->getConf('vs_prefix'), $vs);
 
         $form->insertElement(0, $payment);
-//        $form->startFieldset('Týmováci');
-//        $form->addElement('AHOJ');
-//        $form->endFieldset();
+
+        $this->modify_user_form($form);
     }
 
     public function handle_auth_user_change(Doku_Event &$event, $param) {
@@ -140,6 +106,100 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
         fwrite($f, $data['body']);
         fwrite($f, "\n\n\n");
         fclose($f);
+    }
+
+    private function modify_user_form(Doku_Form $form) {
+        global $INPUT, $INFO;
+        //var_dump($INFO['userinfo']);
+//        $fullname =
+//                $email = $INPUT->post->str('email', $INFO['userinfo']['mail'], true);
+
+        $pos = $form->findElementByAttribute('name', 'login');
+        $form->replaceElement($pos, null);
+        $form->addHidden('login', auth_plugin_gameteam::LOGIN_PLACEHOLDER);
+
+        $pos = $form->findElementByAttribute('name', 'fullname');
+        $el = & $form->getElementAt($pos);
+        $el['_text'] = $this->getLang('teamname');
+
+        $pos = $form->findElementByAttribute('name', 'email');
+        $el = & $form->getElementAt($pos);
+        $el['_text'] = $this->getLang('contactmail');
+
+        // submit button
+        $pos = $form->findElementByAttribute('type', 'submit');
+        $submit = $form->getElementAt($pos);
+        $form->replaceElement($pos, null);
+
+        // reset button
+        $pos = $form->findElementByAttribute('type', 'reset');
+        if ($pos) {
+            $reset = $form->getElementAt($pos);
+            $form->replaceElement($pos, null);
+        }
+
+        // load team info
+        $loginId = $_SERVER['REMOTE_USER'];
+        $teamInfo = array();
+        if ($loginId) {
+            $teamInfo = $this->loadTeamInfo($loginId);
+        }
+
+        // custom fields
+        $form->startFieldset($this->getLang('teaminfo'));
+
+        $fieldspec = json_decode($this->getConf('teamfields'), true);
+        $defaultSpec = array(
+            'default' => null,
+            'type' => 'text',
+        );
+
+        foreach ($fieldspec as $name => $spec) {
+            $spec = array_merge($defaultSpec, $spec);
+            if (array_key_exists($name, $teamInfo)) {
+                $spec['default'] = $teamInfo[$name];
+            }
+
+            $value = $INPUT->post->str($name, $spec['default'], true);
+            switch ($spec['type']) {
+                case 'bool':
+                    $field = form_makeCheckboxField($name, $value, $spec['label'], '', 'block');
+                    break;
+                default:
+                    $field = form_makeTextField($name, $value, $spec['label'], '', 'block');
+                    break;
+            }
+            $form->addElement($field);
+        }
+
+        $form->endFieldset();
+
+        $form->addElement($submit);
+        $form->addElement($reset);
+    }
+
+    private function loadTeamInfo($loginId) {
+        $connection = $this->helper->getConnection();
+        $stmt = $connection->prepare('select * from team where volume_id = :volume_id and login_id = :login_id');
+        $stmt->bindValue('volume_id', $this->getConf('volume_id'));
+        $stmt->bindValue('login_id', $loginId);
+        $stmt->execute();
+
+        $teamInfo = $stmt->fetch();
+
+        $memberInfo = array();
+        $i = 0;
+        $stmt = $connection->prepare('select * from player where team_id = :team_id order by player_id');
+        $stmt->bindValue('team_id', $teamInfo['team_id']);
+        $stmt->execute();
+        while ($row = $stmt->fetch()) {
+            ++$i;
+            foreach ($row as $column => $value) {
+                $memberInfo[$column . '_' . $i] = $value;
+            }
+        }
+
+        return array_merge($memberInfo, $teamInfo);
     }
 
 }
