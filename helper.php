@@ -36,6 +36,44 @@ class helper_plugin_gameteam extends Dokuwiki_Plugin {
         return $res;
     }
 
+    public function update($table, $where, $data) {
+        $pairs = array_map(function($it) {
+                    return "`$it` = :$it";
+                }, array_keys($data));
+        $wherePairs = array_map(function($it) {
+                    return "`$it` = :$it";
+                }, array_keys($where));
+        $stmt = $this->getConnection()->prepare('update `' . $table . '` set ' . implode(', ', $pairs) . ' where ' . implode(' AND ', $wherePairs));
+
+        foreach ($data as $key => $value) {
+            $key = ':' . $key;
+            $stmt->bindValue($key, $value);
+        }
+
+        foreach ($where as $key => $value) {
+            $key = ':' . $key;
+            $stmt->bindValue($key, $value);
+        }
+
+        $res = $stmt->execute();
+        return $res;
+    }
+
+    public function delete($table, $where) {
+        $wherePairs = array_map(function($it) {
+                    return "`$it` = :$it";
+                }, array_keys($where));
+        $stmt = $this->getConnection()->prepare('delete from `' . $table . '`  where ' . implode(' AND ', $wherePairs));
+
+        foreach ($where as $key => $value) {
+            $key = ':' . $key;
+            $stmt->bindValue($key, $value);
+        }
+
+        $res = $stmt->execute();
+        return $res;
+    }
+
     private function connectToDatabase() {
         $dsn = 'mysql:host=' . $this->getConf('mysql_host') . ';dbname=' . $this->getConf('mysql_database');
         $username = $this->getConf('mysql_user');

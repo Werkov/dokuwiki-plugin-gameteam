@@ -183,9 +183,20 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      * @param   array  $changes array of field/value pairs to be changed (password will be clear text)
      * @return  bool
      */
-    public function modifyUser($user, $changes) {
-        // FIXME implement
-        return false;
+    public function modifyUser($user, $changes, $additional = null) {
+        $this->helper->getConnection()->beginTransaction();
+        $res = $this->updateLogin($user, $changes);
+
+        if ($res) {
+            $res = $this->updateTeam($user, $additional);
+        }
+        if (!$res) {
+            $this->helper->getConnection()->rollBack();
+        } else {
+            $this->helper->getConnection()->commit();
+        }
+
+        return $res;
     }
 
     /**
@@ -356,6 +367,29 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         return $this->helper->getConnection()->lastInsertId();
     }
 
+    private function updateLogin($user, $changes) {
+        $mail = $changes['mail'];
+
+        // check uniqueness
+        $stmt = $this->helper->getConnection()->prepare('select count(1) from `login` where email = :email and not login_id = :login_id');
+        $stmt->bindParam('email', $mail);
+        $stmt->bindParam('login_id', $user);
+        $stmt->execute();
+        if ($stmt->fetchColumn() > 0) {
+            msg($this->getLang('existing_email', -1));
+            return false;
+        }
+
+        // store login
+        $data = array(
+            'email' => $mail,
+        );
+        if (isset($changes['pass'])) {
+            $data['password'] = self::hashPassword($changes['pass']);
+        }
+        return $this->helper->update('login', array('login_id' => $user), $data);
+    }
+
     private function createTeam($loginId, $name, $additional) {
         $volumeId = $this->getConf('volume_id');
 
@@ -369,48 +403,20 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
             return false;
         }
 
-        $stmt = $this->helper->getConnection()->prepare('select count(1)+10 from `login` where login_id = :login_id');
-        $stmt->bindParam('login_id', $loginId);
-        $stmt->execute();
-        $cunt = $stmt->fetchColumn();
-
-        $stmt = $this->helper->getConnection()->prepare('select count(1)+10 from `volume` where volume_id = :volume_id');
-        $stmt->bindParam('volume_id', $volumeId);
-        $stmt->execute();
-        $cunt2 = $stmt->fetchColumn();
-
         $stmt = $this->helper->getConnection()->prepare('select max(registration_order) from `team` where volume_id = :volume_id');
         $stmt->bindParam('volume_id', $volumeId);
         $stmt->execute();
         $registrationOrder = $stmt->fetchColumn() + 1;
 
         // store team -- preprocess values
-        $members = array();
-        $teamData = array(
-            'volume_id' => $volumeId,
-            'name' => $name,
-            'login_id' => $loginId,
-            'registration_order' => $registrationOrder,
-            'state' => '00', // registered
-        );
-        foreach ($additional as $key => $value) {
-            $parts = split('_', $key);
-            $mKey = $parts[count($parts) - 1];
-            $pKey = implode('_', array_slice($parts, 0, -1));
-            if (is_numeric($mKey)) {
-                if (!isset($members[$mKey])) {
-                    $members[$mKey] = array();
-                }
-                $members[$mKey][$pKey] = $value;
-            } else {
-                if ($pKey != '') {
-                    $key = $pKey . '_' . $mKey;
-                } else {
-                    $key = $mKey;
-                }
-                $teamData[$key] = $value;
-            }
-        }
+        list($teamData, $members) = self::splitMemberData($additional, array(
+                    'volume_id' => $volumeId,
+                    'name' => $name,
+                    'login_id' => $loginId,
+                    'registration_order' => $registrationOrder,
+                    'state' => '00', // registered
+        ));
+
 
         // store team -- store team
         if (!$this->helper->insert('team', $teamData)) {
@@ -431,6 +437,65 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         }
 
         return true;
+    }
+
+    private function updateTeam($loginId, $additional) {
+        $volumeId = $this->getConf('volume_id');
+
+        $stmt = $this->helper->getConnection()->prepare('select team_id from `team` where volume_id = :volume_id and login_id = :login_id');
+        $stmt->bindParam('volume_id', $volumeId);
+        $stmt->bindParam('login_id', $loginId);
+        $stmt->execute();
+        $teamId = $stmt->fetchColumn();
+
+        // store team -- preprocess values
+        list($teamData, $members) = self::splitMemberData($additional);
+
+        // store team -- store team
+        if (!$this->helper->update('team', array('team_id' => $teamId), $teamData)) {
+            return null;
+        }
+
+        // store team -- store members
+        $this->helper->delete('player', array('team_id' => $teamId));
+        $memberIndicator = $this->getConf('member_indicator');
+        foreach ($members as $memberData) {
+            if (trim($memberData[$memberIndicator]) == '') {
+                continue;
+            }
+            $memberData['team_id'] = $teamId;
+            if (!$this->helper->insert('player', $memberData)) {
+                return null;
+            }
+        }
+
+        return true;
+    }
+
+    private static function splitMemberData($data, $originalTeamData = array()) {
+        $members = array();
+        $teamData = $originalTeamData;
+
+        foreach ($data as $key => $value) {
+            $parts = split('_', $key);
+            $mKey = $parts[count($parts) - 1];
+            $pKey = implode('_', array_slice($parts, 0, -1));
+            if (is_numeric($mKey)) {
+                if (!isset($members[$mKey])) {
+                    $members[$mKey] = array();
+                }
+                $members[$mKey][$pKey] = $value;
+            } else {
+                if ($pKey != '') {
+                    $key = $pKey . '_' . $mKey;
+                } else {
+                    $key = $mKey;
+                }
+                $teamData[$key] = $value;
+            }
+        }
+
+        return array($teamData, $members);
     }
 
     private static function hashPassword($password) {

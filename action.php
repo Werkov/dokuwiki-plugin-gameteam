@@ -95,6 +95,9 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
                 $data['params'][] = array(); // no groups
                 $data['params'][] = $fields; // additional parameters
                 break;
+            case 'modify':
+                $data['params'][] = $fields; // additional parameters
+                break;
         }
     }
 
