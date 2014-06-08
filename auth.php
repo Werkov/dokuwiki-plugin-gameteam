@@ -13,6 +13,9 @@ if (!defined('DOKU_INC'))
 class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
 
     const LOGIN_PLACEHOLDER = '__LOGIN__';
+    const STATE_REGISTERED = '00';
+    const STATE_PAID = '10';
+    const STATE_CANCELLED = '90';
 
     /**
      * @var helper_plugin_gameteam

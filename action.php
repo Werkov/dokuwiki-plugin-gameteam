@@ -68,15 +68,26 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
         $user = $_SERVER['REMOTE_USER'];
         $vs = str_pad($user, 3, '0', STR_PAD_LEFT);
         $form = $event->data;
+        $state = $this->helper->select('team', array('login_id' => $user, 'volume_id' => $this->getConf('volume_id')), 'state');
 
-        $payment = sprintf('<p>Editace týmových informací ještě silně připomíná Dokuwiki, ale platební kontakt již uvádíme :-)</p>
-    <ul>
-    <li>Účet: <strong>%s</strong></li>
-    <li>Variabilní symbol <strong>%s%s</strong></li>
-    </ul>
-', $this->getConf('account'), $this->getConf('vs_prefix'), $vs);
+        $info = array(
+            'Účet' => $this->getConf('account'),
+            'Variabilní symbol' => $this->getConf('vs_prefix') . $vs,
+        );
 
-        $form->insertElement(0, $payment);
+        if ($state == auth_plugin_gameteam::STATE_PAID) {
+            $info['Stav'] = 'Zaplaceno';
+        } else if ($state == auth_plugin_gameteam::STATE_REGISTERED) {
+            $info['Stav'] = 'Nezaplaceno';
+        }
+        $elInfo = '<h2>Informace o platbě</h2><ul>';
+        foreach ($info as $name => $value) {
+            $elInfo .= '<li>' . $name . ': <strong>' . hsc($value) . '</strong></li>';
+        }
+        $elInfo .= '</ul>';
+        $elInfo .= '<h2>Úprava informací</h2>';
+
+        $form->insertElement(0, $elInfo);
 
         $this->modify_user_form($form);
     }

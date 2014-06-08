@@ -83,9 +83,10 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         $stmt = $this->helper->getConnection()->prepare('select *
             from team
             where volume_id = :volume_id
-            and state <> \'90\'
+            and state <> :state
             order by name');
         $stmt->bindValue('volume_id', $this->getConf('volume_id'));
+        $stmt->bindValue('state', auth_plugin_gameteam::STATE_CANCELLED);
         $stmt->execute();
         $teams = $stmt->fetchAll();
 
@@ -110,7 +111,9 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         if (count($teams)) {
             $renderer->doc .= '<p>Počet týmů: ' . count($teams) . '</p>';
             foreach ($teams as $team) {
-                $renderer->doc .= '<h3>' . hsc($team['name']) . ' (' . $team['login_id'] . ')</h3>';
+                $renderer->doc .= '<div class="team-item">';
+                $renderer->doc .= '<h3>' . hsc($team['name']) . '';
+                $renderer->doc .= '<span class="team-info' . ($team['state'] == auth_plugin_gameteam::STATE_PAID ? ' paid' : '') . '">' . $team['login_id'] . '</span></h3>';
                 $names = array_map(function($it) {
                             return $it['display_name'];
                         }, $playersInTeams[$team['team_id']]);
@@ -118,6 +121,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
                 $renderer->doc .= '<p>';
                 $renderer->doc .= implode(', ', $names);
                 $renderer->doc .= '</p>';
+                $renderer->doc .= '</div>';
             }
         } else {
             $renderer->doc .= '<p>Žádné týmy.</p>';

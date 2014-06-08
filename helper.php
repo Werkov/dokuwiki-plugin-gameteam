@@ -74,6 +74,35 @@ class helper_plugin_gameteam extends Dokuwiki_Plugin {
         return $res;
     }
 
+    public function select($table, $where, $fields = null) {
+        $wherePairs = array_map(function($it) {
+                    return "`$it` = :$it";
+                }, array_keys($where));
+
+        $single = false;
+        if (is_array($fields)) {
+            $select = '`' . implode('`, `', $fields) . `'`;
+        } else if ($fields) {
+            $select = "`$fields`";
+            $single = true;
+        } else {
+            $select = '*';
+        }
+        $stmt = $this->getConnection()->prepare('select ' . $select . ' from `' . $table . '`  where ' . implode(' AND ', $wherePairs));
+
+        foreach ($where as $key => $value) {
+            $key = ':' . $key;
+            $stmt->bindValue($key, $value);
+        }
+
+        $stmt->execute();
+        if ($single) {
+            return $stmt->fetchColumn();
+        } else {
+            return $stmt->fetch();
+        }
+    }
+
     private function connectToDatabase() {
         $dsn = 'mysql:host=' . $this->getConf('mysql_host') . ';dbname=' . $this->getConf('mysql_database');
         $username = $this->getConf('mysql_user');
