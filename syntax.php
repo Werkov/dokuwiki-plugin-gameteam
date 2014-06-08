@@ -49,6 +49,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
      */
     public function connectTo($mode) {
         $this->Lexer->addSpecialPattern('<gameteam>', $mode, 'plugin_gameteam');
+        $this->Lexer->addSpecialPattern('<kachnupload>', $mode, 'plugin_gameteam');
     }
 
     /**
@@ -62,6 +63,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
      */
     public function handle($match, $state, $pos, Doku_Handler &$handler) {
         $data = array();
+        $data[] = $match;
 
         return $data;
     }
@@ -80,6 +82,18 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
 
         $renderer->nocache();
 
+        if ($data[0] == '<gameteam>') {
+            $this->renderTeams($renderer);
+        } else if ($data[0] == '<kachnupload>') {
+            $this->renderUpload($renderer);
+        } else {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function renderTeams(Doku_Renderer &$renderer) {
         $stmt = $this->helper->getConnection()->prepare('select *
             from team
             where volume_id = :volume_id
@@ -126,8 +140,16 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         } else {
             $renderer->doc .= '<p>Žádné týmy.</p>';
         }
+    }
 
-        return true;
+    private function renderUpload(Doku_Renderer &$renderer) {
+        $user = $_SERVER['REMOTE_USER'];
+
+        $text = rawLocale('kachnupload');
+        $text = str_replace('@USER@', $user, $text);
+        $text = str_replace('@YEAR@', $this->getConf('upload_year'), $text);
+
+        $renderer->doc .= p_render('xhtml', p_get_instructions($text), $info);
     }
 
 }

@@ -66,16 +66,17 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
 
     public function handle_html_updateprofileform_output(Doku_Event &$event, $param) {
         $user = $_SERVER['REMOTE_USER'];
-        $vs = str_pad($user, 3, '0', STR_PAD_LEFT);
+        $vs = str_pad($user % 1000, 3, '0', STR_PAD_LEFT);
         $form = $event->data;
-        $state = $this->helper->select('team', array('login_id' => $user, 'volume_id' => $this->getConf('volume_id')), 'state');
+        $team = $this->helper->select('team', array('login_id' => $user, 'volume_id' => $this->getConf('volume_id')));
 
         $info = array(
+            'Tým' => $team['name'],
             'Účet' => $this->getConf('account'),
             'Variabilní symbol' => $this->getConf('vs_prefix') . $vs,
         );
 
-        if ($state == auth_plugin_gameteam::STATE_PAID) {
+        if ($team['state'] == auth_plugin_gameteam::STATE_PAID) {
             $info['Stav'] = 'Zaplaceno';
         } else if ($state == auth_plugin_gameteam::STATE_REGISTERED) {
             $info['Stav'] = 'Nezaplaceno';
@@ -123,10 +124,7 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
     }
 
     private function modify_user_form(Doku_Form $form) {
-        global $INPUT, $INFO;
-        //var_dump($INFO['userinfo']);
-//        $fullname =
-//                $email = $INPUT->post->str('email', $INFO['userinfo']['mail'], true);
+        global $INPUT;
 
         $pos = $form->findElementByAttribute('name', 'login');
         $form->replaceElement($pos, null);
