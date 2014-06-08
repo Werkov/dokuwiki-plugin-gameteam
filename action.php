@@ -200,6 +200,9 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
         $stmt->execute();
 
         $teamInfo = $stmt->fetch();
+        if (!$teamInfo) {
+            $teamInfo = array();
+        }
 
         $memberInfo = array();
         $i = 0;
