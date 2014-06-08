@@ -371,25 +371,28 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
     }
 
     private function updateLogin($user, $changes) {
-        $mail = $changes['mail'];
+        if (isset($changes['mail'])) {
+            $mail = $changes['mail'];
 
-        // check uniqueness
-        $stmt = $this->helper->getConnection()->prepare('select count(1) from `login` where email = :email and not login_id = :login_id');
-        $stmt->bindParam('email', $mail);
-        $stmt->bindParam('login_id', $user);
-        $stmt->execute();
-        if ($stmt->fetchColumn() > 0) {
-            msg($this->getLang('existing_email', -1));
-            return false;
+            // check uniqueness
+            $stmt = $this->helper->getConnection()->prepare('select count(1) from `login` where email = :email and not login_id = :login_id');
+            $stmt->bindParam('email', $mail);
+            $stmt->bindParam('login_id', $user);
+            $stmt->execute();
+            if ($stmt->fetchColumn() > 0) {
+                msg($this->getLang('existing_email', -1));
+                return false;
+            }
+            $data = array('email' => $mail);
+        } else {
+            $data = array();
         }
 
         // store login
-        $data = array(
-            'email' => $mail,
-        );
         if (isset($changes['pass'])) {
             $data['password'] = self::hashPassword($changes['pass']);
         }
+
         return $this->helper->update('login', array('login_id' => $user), $data);
     }
 
