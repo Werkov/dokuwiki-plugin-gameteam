@@ -49,6 +49,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
      */
     public function connectTo($mode) {
         $this->Lexer->addSpecialPattern('<gameteam>', $mode, 'plugin_gameteam');
+        $this->Lexer->addSpecialPattern('<puzzles\b.*?>.+?</puzzles>', $mode, 'plugin_gameteam');
         $this->Lexer->addSpecialPattern('<kachnupload>', $mode, 'plugin_gameteam');
     }
 
@@ -63,7 +64,17 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
      */
     public function handle($match, $state, $pos, Doku_Handler &$handler) {
         $data = array();
-        $data[] = $match;
+
+        if ($match == '<gameteam>') {
+            $data['type'] = 'gameteam';
+        } else if ($match == '<kachnupload>') {
+            $data['type'] = 'kachnupload';
+        } else {
+            $data['type'] = 'puzzles';
+            list($parameterString, $additionalString) = preg_split('/>/u', substr($match, 9, -10), 2);
+            $data['parameters'] = $this->parseParameters($parameterString);
+            $data['additional'] = $additionalString;
+        }
 
         return $data;
     }
@@ -80,12 +91,16 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         if ($mode != 'xhtml')
             return false;
 
-        $renderer->nocache();
 
-        if ($data[0] == '<gameteam>') {
+
+        if ($data['type'] == '<gameteam>') {
+            $renderer->nocache();
             $this->renderTeams($renderer);
-        } else if ($data[0] == '<kachnupload>') {
+        } else if ($data['type'] == 'kachnupload') {
+            $renderer->nocache();
             $this->renderUpload($renderer);
+        } else if ($data['type'] == 'puzzles') {
+            $this->renderPuzzles($renderer, $data['additional'], $data['parameters']);
         } else {
             return false;
         }
@@ -150,6 +165,83 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         $text = str_replace('@YEAR@', $this->getConf('upload_year'), $text);
 
         $renderer->doc .= p_render('xhtml', p_get_instructions($text), $info);
+    }
+
+    private function renderPuzzles(Doku_Renderer &$renderer, $additional, $parameters) {
+        $stmt = $this->helper->getConnection()->prepare('select *
+            from team
+            where volume_id = :volume_id
+            and state <> :state
+            order by name');
+        $stmt->bindValue('volume_id', $parameters['volume_id']);
+        $stmt->bindValue('state', auth_plugin_gameteam::STATE_CANCELLED);
+        $stmt->execute();
+        $teams = $stmt->fetchAll();
+
+        $teamFiles = array();
+        search($teamFiles, mediaFN($parameters['root']), function(&$data, $base, $file, $type, $lvl, $opts) {
+                    if ($type == 'd') {
+                        return false;
+                    }
+                    $fileId = pathID($file, true);
+                    if ($fileId != cleanID($fileId)) {
+                        return false; // skip non-valid files
+                    }
+
+                    $filename = basename($file);
+                    list($loginId, $other) = explode('-', $filename, 2);
+                    $data[$loginId] = $opts['root'] . ':' . $fileId;
+                    return true;
+                }, array('root' => $parameters['root']));        
+
+        $code = '';
+        $first = true;
+        foreach ($teams as $team) {
+            if ($first) {
+                $first = false;
+            } else {
+                $code .= "\n";
+            }
+            $fileId = isset($teamFiles[$team['login_id']]) ? $teamFiles[$team['login_id']] : null;
+            if ($fileId) {
+                $code .= '  * {{' . $fileId . '|' . hsc($team['name']) . '}}';
+            } else {
+                $code .= '  * ' . hsc($team['name']);
+            }
+        }
+
+        $code .= $additional;
+
+        $renderer->doc .= p_render('xhtml', p_get_instructions($code), $info);
+    }
+
+    private function parseParameters($parameterString) {
+        //----- default parameter settings
+        $params = array(
+            'root' => null,
+            'volume_id' => null,
+        );
+
+        //----- parse parameteres into name="value" pairs  
+        preg_match_all("/(\w+?)=\"(.*?)\"/", $parameterString, $regexMatches, PREG_SET_ORDER);
+
+        for ($i = 0; $i < count($regexMatches); $i++) {
+            $name = strtolower($regexMatches[$i][1]);  // first subpattern: name of attribute in lowercase
+            $value = $regexMatches[$i][2];              // second subpattern is value
+
+            $found = false;
+            foreach ($params as $paramName => $default) {
+                if (strcmp($name, $paramName) == 0) {
+                    $params[$name] = trim($value);
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                msg(sprintf('Bad param %s.', $name), -1);
+            }
+        }
+        return $params;
     }
 
 }
