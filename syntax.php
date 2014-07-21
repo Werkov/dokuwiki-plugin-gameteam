@@ -93,7 +93,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
 
 
 
-        if ($data['type'] == '<gameteam>') {
+        if ($data['type'] == 'gameteam') {
             $renderer->nocache();
             $this->renderTeams($renderer);
         } else if ($data['type'] == 'kachnupload') {
