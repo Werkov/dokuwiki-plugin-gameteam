@@ -2,13 +2,15 @@ gameteam Plugin for DokuWiki
 
 Experimental plugin for managing game teams.
 
-TODO
-----
+## TODO ##
+
   * limit no. of registered teams
   * sharing logins between years (and create only team)
+    * include database scheme (reverse engineer)
+  * OR keep logins for each year separately (may come in handy)
 
 All documentation for this plugin can be found at
-https://github.com/Werkov/
+https://github.com/Werkov/dokuwiki-plugin-gameteam
 
 If you install this plugin manually, make sure it is installed in
 lib/plugins/gameteam/ - if the folder is called different it

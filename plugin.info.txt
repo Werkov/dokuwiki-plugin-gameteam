@@ -4,4 +4,4 @@ email  xm.koutny@gmail.com
 date   2014-05-15
 name   gameteam plugin
 desc   Experimental plugin for managing game teams.
-url    https://github.com/Werkov/
+url    https://github.com/Werkov/dokuwiki-plugin-gameteam
