@@ -48,7 +48,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
      * @param string $mode Parser mode
      */
     public function connectTo($mode) {
-        $this->Lexer->addSpecialPattern('<gameteam>', $mode, 'plugin_gameteam');
+        $this->Lexer->addSpecialPattern('<gameteam\b.*?>', $mode, 'plugin_gameteam');
         $this->Lexer->addSpecialPattern('<puzzles\b.*?>.+?</puzzles>', $mode, 'plugin_gameteam');
         $this->Lexer->addSpecialPattern('<kachnupload>', $mode, 'plugin_gameteam');
     }
@@ -65,14 +65,19 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
     public function handle($match, $state, $pos, Doku_Handler &$handler) {
         $data = array();
 
-        if ($match == '<gameteam>') {
+        if (substr($match, 0, 9) === '<gameteam') {
             $data['type'] = 'gameteam';
+            $parameterString = substr($match, 10, -1);
+            $data['parameters'] = $this->parseParameters($parameterString, array('volume_id' => null));
         } else if ($match == '<kachnupload>') {
             $data['type'] = 'kachnupload';
         } else {
             $data['type'] = 'puzzles';
             list($parameterString, $additionalString) = preg_split('/>/u', substr($match, 9, -10), 2);
-            $data['parameters'] = $this->parseParameters($parameterString);
+            $data['parameters'] = $this->parseParameters($parameterString, array(
+                'root' => null,
+                'volume_id' => null,
+                    ));
             $data['additional'] = $additionalString;
         }
 
@@ -95,7 +100,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
 
         if ($data['type'] == 'gameteam') {
             $renderer->nocache();
-            $this->renderTeams($renderer);
+            $this->renderTeams($renderer, $data['parameters']);
         } else if ($data['type'] == 'kachnupload') {
             $renderer->nocache();
             $this->renderUpload($renderer);
@@ -108,13 +113,13 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         return true;
     }
 
-    private function renderTeams(Doku_Renderer &$renderer) {
+    private function renderTeams(Doku_Renderer &$renderer, $parameters) {
         $stmt = $this->helper->getConnection()->prepare('select *
             from team
             where volume_id = :volume_id
             and state <> :state
             order by name');
-        $stmt->bindValue('volume_id', $this->getConf('volume_id'));
+        $stmt->bindValue('volume_id', $parameters['volume_id']);
         $stmt->bindValue('state', auth_plugin_gameteam::STATE_CANCELLED);
         $stmt->execute();
         $teams = $stmt->fetchAll();
@@ -123,7 +128,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             from player p
             left join team t on t.team_id = p.team_id
             where t.volume_id = :volume_id');
-        $stmt->bindValue('volume_id', $this->getConf('volume_id'));
+        $stmt->bindValue('volume_id', $parameters['volume_id']);
         $stmt->execute();
         $players = $stmt->fetchAll();
         $playersInTeams = array();
@@ -192,7 +197,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
                     list($loginId, $other) = explode('-', $filename, 2);
                     $data[$loginId] = $opts['root'] . ':' . $fileId;
                     return true;
-                }, array('root' => $parameters['root']));        
+                }, array('root' => $parameters['root']));
 
         $code = '';
         $first = true;
@@ -215,12 +220,9 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         $renderer->doc .= p_render('xhtml', p_get_instructions($code), $info);
     }
 
-    private function parseParameters($parameterString) {
+    private function parseParameters($parameterString, $default) {
         //----- default parameter settings
-        $params = array(
-            'root' => null,
-            'volume_id' => null,
-        );
+        $params = $default;
 
         //----- parse parameteres into name="value" pairs  
         preg_match_all("/(\w+?)=\"(.*?)\"/", $parameterString, $regexMatches, PREG_SET_ORDER);
