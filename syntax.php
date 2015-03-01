@@ -163,12 +163,15 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
     }
 
     private function renderUpload(Doku_Renderer &$renderer) {
+        if (!$this->getConf('show_upload')) {
+            return;
+        }
         $user = $_SERVER['REMOTE_USER'];
 
         $text = rawLocale('kachnupload');
         $text = str_replace('@USER@', $user, $text);
         $text = str_replace('@YEAR@', $this->getConf('upload_year'), $text);
-
+        
         $renderer->doc .= p_render('xhtml', p_get_instructions($text), $info);
     }
 

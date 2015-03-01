@@ -402,7 +402,7 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         return array($teamData, $members);
     }
 
-    private function parseUsername($user) {
+    public function parseUsername($user) {
         if (strstr($user, self::LOGIN_SEPARATOR) !== false) {
             return explode(self::LOGIN_SEPARATOR, $user);
         } else {

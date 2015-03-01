@@ -66,9 +66,16 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
 
     public function handle_html_updateprofileform_output(Doku_Event &$event, $param) {
         $user = $_SERVER['REMOTE_USER'];
-        $vs = str_pad($user % 1000, 3, '0', STR_PAD_LEFT);
+        list($volumeId, $teamIdVolume) = plugin_load('auth', 'gameteam')->parseUsername($user);
         $form = $event->data;
-        $team = $this->helper->select('team', array('login_id' => $user, 'volume_id' => $this->getConf('volume_id')));
+        $team = $this->helper->select('team', array(
+            'team_id_volume' => $teamIdVolume,
+            'volume_id' => $volumeId,
+        ));
+        $l = $this->getConf('vs_length');
+        $m = pow(10, $l);
+        $vs = str_pad($teamIdVolume % $m, $l, '0', STR_PAD_LEFT);
+
 
         $info = array(
             'Tým' => $team['name'],
@@ -78,7 +85,7 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
 
         if ($team['state'] == auth_plugin_gameteam::STATE_PAID) {
             $info['Stav'] = 'Zaplaceno';
-        } else if ($state == auth_plugin_gameteam::STATE_REGISTERED) {
+        } else if ($team['state'] == auth_plugin_gameteam::STATE_REGISTERED) {
             $info['Stav'] = 'Nezaplaceno';
         }
         $elInfo = '<h2>Informace o platbě</h2><ul>';
@@ -88,7 +95,9 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
         $elInfo .= '</ul>';
         $elInfo .= '<h2>Úprava informací</h2>';
 
-        $form->insertElement(0, $elInfo);
+        if ($this->getConf('show_payment')) {
+            $form->insertElement(0, $elInfo);
+        }
 
         $this->modify_user_form($form);
     }
