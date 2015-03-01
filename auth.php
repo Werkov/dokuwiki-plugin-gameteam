@@ -13,6 +13,8 @@ if (!defined('DOKU_INC'))
 class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
 
     const LOGIN_PLACEHOLDER = '__LOGIN__';
+    const LOGIN_SEPARATOR = '_';
+    const BCRYPT_COST = 10;
     const STATE_REGISTERED = '00';
     const STATE_PAID = '10';
     const STATE_CANCELLED = '90';
@@ -21,6 +23,9 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      * @var helper_plugin_gameteam
      */
     private $helper;
+    private $volumeId;
+    private $superuserLogin;
+    private $superuserPassword;
     private $lastCreatedUser = null;
 
     /**
@@ -28,59 +33,27 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      */
     public function __construct() {
         parent::__construct(); // for compatibility
-        // FIXME set capabilities accordingly
+
         $this->cando['addUser'] = true; // can Users be created?
-        //$this->cando['delUser']     = false; // can Users be deleted?
-        //$this->cando['modLogin']    = false; // can login names be changed?
+        $this->cando['delUser'] = false; // can Users be deleted?
+        $this->cando['modLogin'] = false; // can login names be changed?
         $this->cando['modPass'] = true; // can passwords be changed?
-        //$this->cando['modName']     = false; // can real names be changed?
+        $this->cando['modName'] = false; // can real names be changed?
         $this->cando['modMail'] = true; // can emails be changed?
-        //$this->cando['modGroups']   = false; // can groups be changed?
-        //$this->cando['getUsers']    = false; // can a (filtered) list of users be retrieved?
-        //$this->cando['getUserCount']= false; // can the number of users be retrieved?
-        //$this->cando['getGroups']   = false; // can a list of available groups be retrieved?
-        //$this->cando['external']    = false; // does the module do external auth checking?
-        //$this->cando['logout']      = true; // can the user logout again? (eg. not possible with HTTP auth)
-        // FIXME intialize your auth system and set success to true, if successful
+        $this->cando['modGroups'] = false; // can groups be changed?
+        $this->cando['getUsers'] = false; // can a (filtered) list of users be retrieved?
+        $this->cando['getUserCount'] = false; // can the number of users be retrieved?
+        $this->cando['getGroups'] = false; // can a list of available groups be retrieved?
+        $this->cando['external'] = false; // does the module do external auth checking?
+        $this->cando['logout'] = true; // can the user logout again? (eg. not possible with HTTP auth)
+
         $this->helper = $this->loadHelper('gameteam');
         $this->success = true;
+
+        $this->volumeId = $this->getConf('volume_id');
+        $this->superuserLogin = $this->getConf('superuser_login');
+        $this->superuserPassword = $this->getConf('superuser_password');
     }
-
-    /**
-     * Log off the current user [ OPTIONAL ]
-     */
-    //public function logOff() {
-    //}
-
-    /**
-     * Do all authentication [ OPTIONAL ]
-     *
-     * @param   string  $user    Username
-     * @param   string  $pass    Cleartext Password
-     * @param   bool    $sticky  Cookie should not expire
-     * @return  bool             true on successful auth
-     */
-    //public function trustExternal($user, $pass, $sticky = false) {
-    /* some example:
-
-      global $USERINFO;
-      global $conf;
-      $sticky ? $sticky = true : $sticky = false; //sanity check
-
-      // do the checking here
-
-      // set the globals if authed
-      $USERINFO['name'] = 'FIXME';
-      $USERINFO['mail'] = 'FIXME';
-      $USERINFO['grps'] = array('FIXME');
-      $_SERVER['REMOTE_USER'] = $user;
-      $_SESSION[DOKU_COOKIE]['auth']['user'] = $user;
-      $_SESSION[DOKU_COOKIE]['auth']['pass'] = $pass;
-      $_SESSION[DOKU_COOKIE]['auth']['info'] = $USERINFO;
-      return true;
-
-     */
-    //}
 
     /**
      * Check user+password
@@ -92,18 +65,29 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      * @return  bool
      */
     public function checkPass($user, $pass) {
-        $stmt = $this->helper->getConnection()->prepare('
-            select count(1)
-            from login l 
-            where (l.login_id = :login_id or l.login_name = :login_name) and l.password = :password');
+        if ($user === $this->superuserLogin) {
+            $hash = $this->superuserPassword;
+        } else {
+            list($volumeId, $teamIdVolume) = $this->parseUsername($user);
 
-        $stmt->bindValue('login_id', $user);
-        $stmt->bindValue('login_name', $user);
-        $stmt->bindValue('password', self::hashPassword($pass));
+            /* We allow only teams from current volume. */
+            if ($volumeId != $this->volumeId) {
+                return false;
+            }
 
-        $stmt->execute();
+            $stmt = $this->helper->getConnection()->prepare('
+            select password
+            from team t
+            where t.volume_id = :volume_id and t.team_id_volume = :team_id_volume');
 
-        return $stmt->fetchColumn() > 0;
+            $stmt->bindValue('volume_id', $volumeId);
+            $stmt->bindValue('team_id_volume', $teamIdVolume);
+
+            $stmt->execute();
+            $hash = $stmt->fetchColumn();
+        }
+
+        return $this->verify($pass, $hash);
     }
 
     /**
@@ -120,15 +104,23 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      * @return  array containing user data or false
      */
     public function getUserData($user) {
-        $stmt = $this->helper->getConnection()->prepare('
-            select t.name, l.email
-            from login l 
-            left join team t on t.login_id = l.login_id and t.volume_id = :volume_id
-            where l.login_id = :login_id or l.login_name = :login_name');
+        if ($user === $this->superuserLogin) {
+            return array(
+                'name' => $this->superuserLogin,
+                'mail' => '',
+                'grps' => array('admin'),
+            );
+        }
 
-        $stmt->bindValue('login_id', $user);
-        $stmt->bindValue('login_name', $user);
-        $stmt->bindValue('volume_id', $this->getConf('volume_id'));
+        list($volumeId, $teamId) = $this->parseUsername($user);
+
+        $stmt = $this->helper->getConnection()->prepare('
+            select t.name, t.email
+            from team t
+            where t.team_id_volume = :team_id_volume and t.volume_id = :volume_id');
+
+        $stmt->bindValue('team_id_volume', $teamId);
+        $stmt->bindValue('volume_id', $volumeId);
 
         $stmt->execute();
         $row = $stmt->fetch();
@@ -138,7 +130,7 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         return array(
             'name' => $row['name'],
             'mail' => $row['email'],
-            'grps' => ($user == 'Bazinga' ? array('admin') : array()),
+            'grps' => array(),
         );
     }
 
@@ -162,12 +154,8 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      */
     public function createUser($user, $pass, $name, $mail, $grps = null, $additional = null) {
         $this->helper->getConnection()->beginTransaction();
-        $res = $this->createLogin($user, $pass, $mail);
+        $res = $this->createTeam($mail, $pass, $name, $additional);
 
-        if ($res !== false && $res !== null) {
-            $this->lastCreatedUser = $res;
-            $res = $this->createTeam($res, $name, $additional);
-        }
         if (!$res) {
             $this->helper->getConnection()->rollBack();
         } else {
@@ -188,11 +176,8 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      */
     public function modifyUser($user, $changes, $additional = null) {
         $this->helper->getConnection()->beginTransaction();
-        $res = $this->updateLogin($user, $changes);
+        $res = $this->updateTeam($user, $changes, $additional);
 
-        if ($res) {
-            $res = $this->updateTeam($user, $additional);
-        }
         if (!$res) {
             $this->helper->getConnection()->rollBack();
         } else {
@@ -201,75 +186,6 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
 
         return $res;
     }
-
-    /**
-     * Delete one or more users [implement only where required/possible]
-     *
-     * Set delUser capability when implemented
-     *
-     * @param   array  $users
-     * @return  int    number of users deleted
-     */
-    //public function deleteUsers($users) {
-    // FIXME implement
-    //    return false;
-    //}
-
-    /**
-     * Bulk retrieval of user data [implement only where required/possible]
-     *
-     * Set getUsers capability when implemented
-     *
-     * @param   int   $start     index of first user to be returned
-     * @param   int   $limit     max number of users to be returned
-     * @param   array $filter    array of field/pattern pairs, null for no filter
-     * @return  array list of userinfo (refer getUserData for internal userinfo details)
-     */
-    //public function retrieveUsers($start = 0, $limit = -1, $filter = null) {
-    // FIXME implement
-    //    return array();
-    //}
-
-    /**
-     * Return a count of the number of user which meet $filter criteria
-     * [should be implemented whenever retrieveUsers is implemented]
-     *
-     * Set getUserCount capability when implemented
-     *
-     * @param  array $filter array of field/pattern pairs, empty array for no filter
-     * @return int
-     */
-    //public function getUserCount($filter = array()) {
-    // FIXME implement
-    //    return 0;
-    //}
-
-    /**
-     * Define a group [implement only where required/possible]
-     *
-     * Set addGroup capability when implemented
-     *
-     * @param   string $group
-     * @return  bool
-     */
-    //public function addGroup($group) {
-    // FIXME implement
-    //    return false;
-    //}
-
-    /**
-     * Retrieve groups [implement only where required/possible]
-     *
-     * Set getGroups capability when implemented
-     *
-     * @param   int $start
-     * @param   int $limit
-     * @return  array
-     */
-    //public function retrieveGroups($start = 0, $limit = 0) {
-    // FIXME implement
-    //    return array();
-    //}
 
     /**
      * Return case sensitivity of the backend
@@ -296,8 +212,12 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      * @return string the cleaned username
      */
     public function cleanUser($user) {
-        if ($this->lastCreatedUser !== null && $user == self::LOGIN_PLACEHOLDER) {
+        if($user === self::LOGIN_PLACEHOLDER && $this->lastCreatedUser) {
             return $this->lastCreatedUser;
+        } elseif (!($user === self::LOGIN_PLACEHOLDER || $user === '' || $user === $this->superuserLogin)) {
+            if (strstr($user, self::LOGIN_SEPARATOR) === false) {
+                return $this->volumeId . self::LOGIN_SEPARATOR . $user;
+            }
         }
         return $user;
     }
@@ -320,113 +240,58 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         return $group;
     }
 
-    /**
-     * Check Session Cache validity [implement only where required/possible]
-     *
-     * DokuWiki caches user info in the user's session for the timespan defined
-     * in $conf['auth_security_timeout'].
-     *
-     * This makes sure slow authentication backends do not slow down DokuWiki.
-     * This also means that changes to the user database will not be reflected
-     * on currently logged in users.
-     *
-     * To accommodate for this, the user manager plugin will touch a reference
-     * file whenever a change is submitted. This function compares the filetime
-     * of this reference file with the time stored in the session.
-     *
-     * This reference file mechanism does not reflect changes done directly in
-     * the backend's database through other means than the user manager plugin.
-     *
-     * Fast backends might want to return always false, to force rechecks on
-     * each page load. Others might want to use their own checking here. If
-     * unsure, do not override.
-     *
-     * @param  string $user - The username
-     * @return bool
-     */
-    //public function useSessionCache($user) {
-    // FIXME implement
-    //}
-
-    private function createLogin($user, $pass, $mail) {
-        // check uniqueness
-        $stmt = $this->helper->getConnection()->prepare('select count(1) from `login` where email = :email');
-        $stmt->bindParam('email', $mail);
+    private function createTeam($email, $password, $name, $additional) {
+        // check email uniqueness
+        $stmt = $this->helper->getConnection()->prepare(
+                'select count(1)
+                 from `team`
+                 where email = :email
+                       and volume_id = :volume_id');
+        $stmt->bindParam('email', $email);
+        $stmt->bindParam('volume_id', $this->volumeId);
         $stmt->execute();
         if ($stmt->fetchColumn() > 0) {
-            msg($this->getLang('existing_email', -1));
+            msg($this->getLang('existing_email'), -1);
             return false;
         }
 
-        // store user
-        if (!$this->helper->insert('login', array(
-                    'email' => $mail,
-                    'password' => self::hashPassword($pass)
-                ))) {
-            return null;
-        }
-        $e = $this->helper->getConnection()->errorCode();
-        $err = $this->helper->getConnection()->errorInfo();
-        return $this->helper->getConnection()->lastInsertId();
-    }
-
-    private function updateLogin($user, $changes) {
-        if (isset($changes['mail'])) {
-            $mail = $changes['mail'];
-
-            // check uniqueness
-            $stmt = $this->helper->getConnection()->prepare('select count(1) from `login` where email = :email and not login_id = :login_id');
-            $stmt->bindParam('email', $mail);
-            $stmt->bindParam('login_id', $user);
-            $stmt->execute();
-            if ($stmt->fetchColumn() > 0) {
-                msg($this->getLang('existing_email', -1));
-                return false;
-            }
-            $data = array('email' => $mail);
-        } else {
-            $data = array();
-        }
-
-        // store login
-        if (isset($changes['pass'])) {
-            $data['password'] = self::hashPassword($changes['pass']);
-        }
-
-        return $this->helper->update('login', array('login_id' => $user), $data);
-    }
-
-    private function createTeam($loginId, $name, $additional) {
-        $volumeId = $this->getConf('volume_id');
-
-        // check uniqueness
-        $stmt = $this->helper->getConnection()->prepare('select count(1) from `team` where volume_id = :volume_id and name = :name');
-        $stmt->bindParam('volume_id', $volumeId);
+        // check name uniqueness
+        $stmt = $this->helper->getConnection()->prepare(
+                'select count(1)
+                 from `team`
+                 where volume_id = :volume_id and name = :name');
+        $stmt->bindParam('volume_id', $this->volumeId);
         $stmt->bindParam('name', $name);
         $stmt->execute();
         if ($stmt->fetchColumn() > 0) {
-            msg($this->getLang('existing_team', -1));
+            msg($this->getLang('existing_team'), -1);
             return false;
         }
 
-        $stmt = $this->helper->getConnection()->prepare('select max(registration_order) from `team` where volume_id = :volume_id');
-        $stmt->bindParam('volume_id', $volumeId);
+        $stmt = $this->helper->getConnection()->prepare(
+                'select max(team_id_volume)
+                 from `team`
+                 where volume_id = :volume_id');
+        $stmt->bindParam('volume_id', $this->volumeId);
         $stmt->execute();
-        $registrationOrder = $stmt->fetchColumn() + 1;
+        $teamIdVolume = $stmt->fetchColumn() + 1;
 
         // store team -- preprocess values
+        $hash = $this->hash($password);
+        echo "create: $password, $hash; " . ($this->verify($password, $hash) ? 'same' : 'diff');
         list($teamData, $members) = self::splitMemberData($additional, array(
-                    'volume_id' => $volumeId,
+                    'volume_id' => $this->volumeId,
                     'name' => $name,
-                    'login_id' => $loginId,
-                    'registration_order' => $registrationOrder,
-                    'state' => '00', // registered
+                    'email' => $email,
+                    'password' => $hash,
+                    'team_id_volume' => $teamIdVolume,
+                    'state' => self::STATE_REGISTERED,
         ));
-
 
         // store team -- store team
         if (!$this->helper->insert('team', $teamData)) {
-            return null;
+            msg('DB error', -1);
+            return false;
         }
         $teamId = $this->helper->getConnection()->lastInsertId();
 
@@ -438,24 +303,57 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
             }
             $memberData['team_id'] = $teamId;
             if (!$this->helper->insert('player', $memberData)) {
-                return null;
+                return false;
             }
         }
 
+        $this->lastCreatedUser = $this->volumeId . self::LOGIN_SEPARATOR . $teamIdVolume;
         return true;
     }
 
-    private function updateTeam($loginId, $additional) {
-        $volumeId = $this->getConf('volume_id');
+    private function updateTeam($user, $changes, $additional) {
+        list($volumeId, $teamIdVolume) = $this->parseUsername($user);
 
-        $stmt = $this->helper->getConnection()->prepare('select team_id from `team` where volume_id = :volume_id and login_id = :login_id');
+        // login
+        if (isset($changes['mail'])) {
+            $mail = $changes['mail'];
+
+            // check uniqueness
+            $stmt = $this->helper->getConnection()->prepare(
+                    'select count(1) from `team`
+                     where email = :email
+                           and not (volume_id = :volume_id
+                                    and team_id_volume :team_id_volume)');
+            $stmt->bindParam('email', $mail);
+            $stmt->bindParam('volume_id', $volumeId);
+            $stmt->bindParam('team_id_volume', $teamId);
+
+            $stmt->execute();
+            if ($stmt->fetchColumn() > 0) {
+                msg($this->getLang('existing_email', -1));
+                return false;
+            }
+            $loginData = array('email' => $mail);
+        } else {
+            $loginData = array();
+        }
+
+        // store login
+        if (isset($changes['pass'])) {
+            $loginData['password'] = $this->hash($changes['pass']);
+        }
+
+        $stmt = $this->helper->getConnection()->prepare(
+                'select team_id from `team`
+                 where volume_id = :volume_id and team_id_volume = :team_id_volume');
         $stmt->bindParam('volume_id', $volumeId);
-        $stmt->bindParam('login_id', $loginId);
+        $stmt->bindParam('login_id', $teamIdVolume);
         $stmt->execute();
         $teamId = $stmt->fetchColumn();
 
         // store team -- preprocess values
         list($teamData, $members) = self::splitMemberData($additional);
+        $teamData = array_merge($teamData, $loginData);
 
         // store team -- store team
         if (!$this->helper->update('team', array('team_id' => $teamId), $teamData)) {
@@ -504,8 +402,61 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         return array($teamData, $members);
     }
 
-    private static function hashPassword($password) {
-        return sha1($password);
+    private function parseUsername($user) {
+        if (strstr($user, self::LOGIN_SEPARATOR) !== false) {
+            return explode(self::LOGIN_SEPARATOR, $user);
+        } else {
+            return array($this->volumeId, $user);
+        }
+    }
+
+    /*
+     * The password hashing functions are by David Grudl, originally part of
+     * Nette Framework.
+     * https://github.com/nette/security/blob/master/src/Security/Passwords.php
+     */
+
+    /**
+     * Computes salted password hash.
+     * @param string
+     * @param array with cost (4-31), salt (22 chars)
+     * @return string 60 chars long
+     */
+    private static function hash($password, array $options = NULL) {
+        $cost = isset($options['cost']) ? (int) $options['cost'] : self::BCRYPT_COST;
+        $salt = isset($options['salt']) ? (string) $options['salt'] : self::randomSalt(22);
+        if (PHP_VERSION_ID < 50307) {
+            throw new InvalidArgumentException(__METHOD__ . ' requires PHP >= 5.3.7.', -1);
+        } elseif (($len = strlen($salt)) < 22) {
+            throw new InvalidArgumentException("Salt must be 22 characters long, $len given.");
+        } elseif ($cost < 4 || $cost > 31) {
+            throw new InvalidArgumentException("Cost must be in range 4-31, $cost given.");
+        }
+        $hash = crypt($password, '$2y$' . ($cost < 10 ? 0 : '') . $cost . '$' . $salt);
+        if (strlen($hash) < 60) {
+            throw new InvalidArgumentException('Hash returned by crypt is invalid.');
+        }
+        return $hash;
+    }
+
+    /**
+     * Verifies that a password matches a hash.
+     * @return bool
+     */
+    private static function verify($password, $hash) {
+        return preg_match('#^\$2y\$(?P<cost>\d\d)\$(?P<salt>.{22})#', $hash, $m)
+                && $m['cost'] >= 4
+                && $m['cost'] <= 31 && self::hash($password, $m) === $hash;
+    }
+
+    private static function randomSalt($length) {
+        static $universum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        $max = strlen($universum);
+        $result = '';
+        for ($l = 0; $l < $length; ++$l) {
+            $result .= $universum{rand(0, $max - 1)};
+        }
+        return $result;
     }
 
 }

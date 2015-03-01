@@ -18,4 +18,5 @@ $conf['vs_prefix'] = '1140100';
 $conf['vs_length'] = '10';
 $conf['account'] = '2500167471/2010';
 $conf['upload_year'] = '2014';
+$conf['superuser_login'] = 'Bazinga';
 
