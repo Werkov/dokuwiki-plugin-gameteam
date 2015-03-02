@@ -28,7 +28,7 @@ CREATE TABLE `team` (
   `state` enum('00','10','90') COLLATE utf8_czech_ci NOT NULL COMMENT '00: registered, 10: paid, 90: cancelled',
   `sleeping` tinyint(1) NOT NULL COMMENT '1 iff nevadí jim spát na zemi',
   PRIMARY KEY (`team_id`),
-  UNIQUE KEY `volume_id_login` (`volume_id`, `email`),
+  UNIQUE KEY `volume_id_email` (`volume_id`, `email`),
   UNIQUE KEY `volume_id_name` (`volume_id`,`name`),
   UNIQUE KEY `volume_id_team_id_volume` (`volume_id`,`team_id_volume`),
   CONSTRAINT `team_ibfk_2` FOREIGN KEY (`volume_id`) REFERENCES `volume` (`volume_id`)

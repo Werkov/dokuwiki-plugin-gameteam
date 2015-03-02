@@ -147,7 +147,9 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             foreach ($teams as $team) {
                 $renderer->doc .= '<div class="team-item">';
                 $renderer->doc .= '<h3>' . hsc($team['name']) . '';
-                $renderer->doc .= '<span class="team-info' . ($team['state'] == auth_plugin_gameteam::STATE_PAID ? ' paid' : '') . '">' . $team['login_id'] . '</span></h3>';
+                $renderer->doc .= '<span class="team-info' . 
+                        ($team['state'] == auth_plugin_gameteam::STATE_PAID ? ' paid' : '') . '">' . 
+                        $team['team_id_volume'] . '</span></h3>';
                 $names = array_map(function($it) {
                             return $it['display_name'];
                         }, $playersInTeams[$team['team_id']]);
