@@ -278,7 +278,6 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
 
         // store team -- preprocess values
         $hash = $this->hash($password);
-        echo "create: $password, $hash; " . ($this->verify($password, $hash) ? 'same' : 'diff');
         list($teamData, $members) = self::splitMemberData($additional, array(
                     'volume_id' => $this->volumeId,
                     'name' => $name,
