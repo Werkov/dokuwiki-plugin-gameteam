@@ -199,8 +199,8 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
                     }
 
                     $filename = basename($file);
-                    list($username, $other) = explode('-', $filename, 2);
-                    $data[$username] = $opts['root'] . ':' . $fileId;
+                    list($teamIdVolume, $other) = explode('-', $filename, 2);
+                    $data[$teamIdVolume] = $opts['root'] . ':' . $fileId;
                     return true;
                 }, array('root' => $parameters['root']));
 
@@ -212,8 +212,8 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             } else {
                 $code .= "\n";
             }
-            $username = $team['volume_id'] . auth_plugin_gameteam::LOGIN_SEPARATOR . $team['team_id_volume'];
-            $fileId = isset($teamFiles[$username]) ? $teamFiles[$username] : null;
+            $teamIdVolume = $team['team_id_volume'];
+            $fileId = isset($teamFiles[$teamIdVolume]) ? $teamFiles[$teamIdVolume] : null;
             if ($fileId) {
                 $code .= '  * {{' . $fileId . '|' . hsc($team['name']) . '}}';
             } else {
