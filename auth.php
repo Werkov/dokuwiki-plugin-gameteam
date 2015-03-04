@@ -346,7 +346,7 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
                 'select team_id from `team`
                  where volume_id = :volume_id and team_id_volume = :team_id_volume');
         $stmt->bindParam('volume_id', $volumeId);
-        $stmt->bindParam('login_id', $teamIdVolume);
+        $stmt->bindParam('team_id_volume', $teamIdVolume);
         $stmt->execute();
         $teamId = $stmt->fetchColumn();
 

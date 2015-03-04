@@ -160,10 +160,10 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
         }
 
         // load team info
-        $loginId = $_SERVER['REMOTE_USER'];
+        $username = $_SERVER['REMOTE_USER'];
         $teamInfo = array();
-        if ($loginId) {
-            $teamInfo = $this->loadTeamInfo($loginId);
+        if ($username) {
+            $teamInfo = $this->loadTeamInfo($username);
         }
 
         // custom fields
@@ -199,11 +199,12 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
         $form->addElement($reset);
     }
 
-    private function loadTeamInfo($loginId) {
+    private function loadTeamInfo($username) {
+        list($volumeId, $teamIdVolume) = plugin_load('auth', 'gameteam')->parseUsername($username);
         $connection = $this->helper->getConnection();
-        $stmt = $connection->prepare('select * from team where volume_id = :volume_id and login_id = :login_id');
-        $stmt->bindValue('volume_id', $this->getConf('volume_id'));
-        $stmt->bindValue('login_id', $loginId);
+        $stmt = $connection->prepare('select * from team where volume_id = :volume_id and team_id_volume = :team_id_volume');
+        $stmt->bindValue('volume_id', $volumeId);
+        $stmt->bindValue('team_id_volume', $teamIdVolume);
         $stmt->execute();
 
         $teamInfo = $stmt->fetch();

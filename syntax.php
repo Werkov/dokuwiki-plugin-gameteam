@@ -147,8 +147,8 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             foreach ($teams as $team) {
                 $renderer->doc .= '<div class="team-item">';
                 $renderer->doc .= '<h3>' . hsc($team['name']) . '';
-                $renderer->doc .= '<span class="team-info' . 
-                        ($team['state'] == auth_plugin_gameteam::STATE_PAID ? ' paid' : '') . '">' . 
+                $renderer->doc .= '<span class="team-info' .
+                        ($team['state'] == auth_plugin_gameteam::STATE_PAID ? ' paid' : '') . '">' .
                         $team['team_id_volume'] . '</span></h3>';
                 $names = array_map(function($it) {
                             return $it['display_name'];
@@ -173,7 +173,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         $text = rawLocale('kachnupload');
         $text = str_replace('@USER@', $user, $text);
         $text = str_replace('@YEAR@', $this->getConf('upload_year'), $text);
-        
+
         $renderer->doc .= p_render('xhtml', p_get_instructions($text), $info);
     }
 
@@ -199,8 +199,8 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
                     }
 
                     $filename = basename($file);
-                    list($loginId, $other) = explode('-', $filename, 2);
-                    $data[$loginId] = $opts['root'] . ':' . $fileId;
+                    list($username, $other) = explode('-', $filename, 2);
+                    $data[$username] = $opts['root'] . ':' . $fileId;
                     return true;
                 }, array('root' => $parameters['root']));
 
@@ -212,7 +212,8 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             } else {
                 $code .= "\n";
             }
-            $fileId = isset($teamFiles[$team['login_id']]) ? $teamFiles[$team['login_id']] : null;
+            $username = $team['volume_id'] . auth_plugin_gameteam::LOGIN_SEPARATOR . $team['team_id_volume'];
+            $fileId = isset($teamFiles[$username]) ? $teamFiles[$username] : null;
             if ($fileId) {
                 $code .= '  * {{' . $fileId . '|' . hsc($team['name']) . '}}';
             } else {
@@ -229,7 +230,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         //----- default parameter settings
         $params = $default;
 
-        //----- parse parameteres into name="value" pairs  
+        //----- parse parameteres into name="value" pairs
         preg_match_all("/(\w+?)=\"(.*?)\"/", $parameterString, $regexMatches, PREG_SET_ORDER);
 
         for ($i = 0; $i < count($regexMatches); $i++) {
