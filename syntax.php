@@ -118,7 +118,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             from team
             where volume_id = :volume_id
             and state <> :state
-            order by name');
+            order by state desc, team_id_volume ASC');
         $stmt->bindValue('volume_id', $parameters['volume_id']);
         $stmt->bindValue('state', auth_plugin_gameteam::STATE_CANCELLED);
         $stmt->execute();
