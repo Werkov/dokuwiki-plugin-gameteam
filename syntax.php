@@ -143,9 +143,12 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         }
 
         if (count($teams)) {
+            $capacity = $this->getConf('capacity');
             $renderer->doc .= '<p>Počet týmů: ' . count($teams) . '</p>';
             foreach ($teams as $team) {
-                $renderer->doc .= '<div class="team-item">';
+                $renderer->doc .= '<div class="team-item' .
+                        (--$capacity == 0 ? ' separator' : '') . '">';
+                
                 $renderer->doc .= '<h3>' . hsc($team['name']) . '';
                 $renderer->doc .= '<span class="team-info' .
                         ($team['state'] == auth_plugin_gameteam::STATE_PAID ? ' paid' : '') . '">' .

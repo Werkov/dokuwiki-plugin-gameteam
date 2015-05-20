@@ -5,6 +5,8 @@
  *
  * @author Michal Koutný <xm.koutny@gmail.com>
  */
+$conf['account'] = '2500167471/2010';
+$conf['capacity'] = 24;
 $conf['mysql_host'] = 'localhost';
 $conf['teamfields'] = '{
     "phone": {"label": "Kontaktní telefon"},
@@ -16,7 +18,6 @@ $conf['teamfields'] = '{
 $conf['member_indicator'] = 'display_name';
 $conf['vs_prefix'] = '1140100';
 $conf['vs_length'] = '3';
-$conf['account'] = '2500167471/2010';
 $conf['upload_year'] = '2014';
 $conf['superuser_login'] = 'Bazinga';
 $conf['show_payment'] = 0;

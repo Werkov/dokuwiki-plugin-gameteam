@@ -7,6 +7,7 @@
 
 
 $meta['account'] = array('string');
+$meta['capacity'] = array('numeric');
 $meta['mysql_host'] = array('string');
 $meta['mysql_user'] = array('string');
 $meta['mysql_password'] = array('password');
