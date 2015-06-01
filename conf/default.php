@@ -21,5 +21,4 @@ $conf['vs_length'] = '3';
 $conf['upload_year'] = '2014';
 $conf['superuser_login'] = 'Bazinga';
 $conf['show_payment'] = 0;
-$conf['show_upload'] = 0;
 

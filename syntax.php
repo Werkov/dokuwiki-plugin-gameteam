@@ -168,9 +168,6 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
     }
 
     private function renderUpload(Doku_Renderer &$renderer) {
-        if (!$this->getConf('show_upload')) {
-            return;
-        }
         $user = $_SERVER['REMOTE_USER'];
         list($volumeId, $teamId) = $this->helper->parseUsername($user, null);
 
