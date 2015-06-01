@@ -172,10 +172,16 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             return;
         }
         $user = $_SERVER['REMOTE_USER'];
+        list($volumeId, $teamId) = $this->helper->parseUsername($user, null);
 
-        $text = rawLocale('kachnupload');
-        $text = str_replace('@USER@', $user, $text);
-        $text = str_replace('@YEAR@', $this->getConf('upload_year'), $text);
+        $map = array(
+            '@USER@' => $user,
+            '@YEAR@' => $this->getConf('upload_year'),
+            '@TEAMID@' => $teamId,
+        );
+
+        $template = rawLocale('kachnupload');
+        $text = str_replace(array_keys($map), array_values($map), $template);
 
         $renderer->doc .= p_render('xhtml', p_get_instructions($text), $info);
     }

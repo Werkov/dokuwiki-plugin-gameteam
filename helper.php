@@ -12,6 +12,8 @@ if (!defined('DOKU_INC'))
 
 class helper_plugin_gameteam extends Dokuwiki_Plugin {
 
+    const LOGIN_SEPARATOR = '_';
+
     /**
      * @var PDO
      */
@@ -100,6 +102,20 @@ class helper_plugin_gameteam extends Dokuwiki_Plugin {
             return $stmt->fetchColumn();
         } else {
             return $stmt->fetch();
+        }
+    }
+
+    public function parseUsername($user, $defaultVolumeId) {
+        if (strstr($user, self::LOGIN_SEPARATOR) !== false) {
+            return explode(self::LOGIN_SEPARATOR, $user);
+        } else {
+            return array($defaultVolumeId, $user);
+        }
+    }
+
+    public function decorateUsername($rawUser, $volumeId) {
+        if (strstr($rawUser, self::LOGIN_SEPARATOR) === false) {
+            return $volumeId . self::LOGIN_SEPARATOR . $rawUser;
         }
     }
 

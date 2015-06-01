@@ -13,7 +13,6 @@ if (!defined('DOKU_INC'))
 class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
 
     const LOGIN_PLACEHOLDER = '__LOGIN__';
-    const LOGIN_SEPARATOR = '_';
     const BCRYPT_COST = 10;
     const STATE_REGISTERED = '00';
     const STATE_PAID = '10';
@@ -68,7 +67,7 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         if ($user === $this->superuserLogin) {
             $hash = $this->superuserPassword;
         } else {
-            list($volumeId, $teamIdVolume) = $this->parseUsername($user);
+            list($volumeId, $teamIdVolume) = $this->helper->parseUsername($user, $this->volumeId);
 
             /* We allow only teams from current volume. */
             if ($volumeId != $this->volumeId) {
@@ -112,7 +111,7 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
             );
         }
 
-        list($volumeId, $teamId) = $this->parseUsername($user);
+        list($volumeId, $teamId) = $this->helper->parseUsername($user, $this->volumeId);
 
         $stmt = $this->helper->getConnection()->prepare('
             select t.name, t.email
@@ -215,9 +214,7 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         if($user === self::LOGIN_PLACEHOLDER && $this->lastCreatedUser) {
             return $this->lastCreatedUser;
         } elseif (!($user === self::LOGIN_PLACEHOLDER || $user === '' || $user === $this->superuserLogin)) {
-            if (strstr($user, self::LOGIN_SEPARATOR) === false) {
-                return $this->volumeId . self::LOGIN_SEPARATOR . $user;
-            }
+            return $this->helper->decorateUsername($user, $this->volumeId);
         }
         return $user;
     }
@@ -311,7 +308,7 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
     }
 
     private function updateTeam($user, $changes, $additional) {
-        list($volumeId, $teamIdVolume) = $this->parseUsername($user);
+        list($volumeId, $teamIdVolume) = $this->helper->parseUsername($user, $this->volumeId);
 
         // login
         if (isset($changes['mail'])) {
@@ -401,13 +398,6 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         return array($teamData, $members);
     }
 
-    public function parseUsername($user) {
-        if (strstr($user, self::LOGIN_SEPARATOR) !== false) {
-            return explode(self::LOGIN_SEPARATOR, $user);
-        } else {
-            return array($this->volumeId, $user);
-        }
-    }
 
     /*
      * The password hashing functions are by David Grudl, originally part of

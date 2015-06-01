@@ -66,7 +66,8 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
 
     public function handle_html_updateprofileform_output(Doku_Event &$event, $param) {
         $user = $_SERVER['REMOTE_USER'];
-        list($volumeId, $teamIdVolume) = plugin_load('auth', 'gameteam')->parseUsername($user);
+        $defaultVolumeId = $this->getConf('volume_id');
+        list($volumeId, $teamIdVolume) = $this->helper->parseUsername($user, $defaultVolumeId);
         $form = $event->data;
         $team = $this->helper->select('team', array(
             'team_id_volume' => $teamIdVolume,
@@ -200,7 +201,8 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
     }
 
     private function loadTeamInfo($username) {
-        list($volumeId, $teamIdVolume) = plugin_load('auth', 'gameteam')->parseUsername($username);
+        $defaultVolumeId = $this->getConf('volume_id');
+        list($volumeId, $teamIdVolume) = $this->helper->parseUsername($user, $defaultVolumeId);
         $connection = $this->helper->getConnection();
         $stmt = $connection->prepare('select * from team where volume_id = :volume_id and team_id_volume = :team_id_volume');
         $stmt->bindValue('volume_id', $volumeId);
