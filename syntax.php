@@ -17,8 +17,15 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
      */
     private $helper;
 
+    /**
+     *
+     * @var helper_plugin_upload
+     */
+    private $upload_helper;
+
     public function __construct() {
         $this->helper = $this->loadHelper('gameteam');
+        $this->upload_helper = $this->loadHelper('upload');
     }
 
     /**
@@ -51,6 +58,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         $this->Lexer->addSpecialPattern('<gameteam\b.*?>', $mode, 'plugin_gameteam');
         $this->Lexer->addSpecialPattern('<puzzles\b.*?>.+?</puzzles>', $mode, 'plugin_gameteam');
         $this->Lexer->addSpecialPattern('<kachnupload>', $mode, 'plugin_gameteam');
+        $this->Lexer->addSpecialPattern('<puzzleinfo\b.*?>', $mode, 'plugin_gameteam');
     }
 
     /**
@@ -69,6 +77,13 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             $data['type'] = 'gameteam';
             $parameterString = substr($match, 10, -1);
             $data['parameters'] = $this->parseParameters($parameterString, array('volume_id' => null));
+        } else if (substr($match, 0, 11) === '<puzzleinfo') {
+            $data['type'] = 'puzzleinfo';
+            $parameterString = substr($match, 12, -1);
+            $data['parameters'] = $this->parseParameters($parameterString, array(
+                'volume_id' => null,
+                'file_template' => null,
+            ));
         } else if ($match == '<kachnupload>') {
             $data['type'] = 'kachnupload';
         } else {
@@ -77,7 +92,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             $data['parameters'] = $this->parseParameters($parameterString, array(
                 'root' => null,
                 'volume_id' => null,
-                    ));
+            ));
             $data['additional'] = $additionalString;
         }
 
@@ -106,6 +121,9 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             $this->renderUpload($renderer);
         } else if ($data['type'] == 'puzzles') {
             $this->renderPuzzles($renderer, $data['additional'], $data['parameters']);
+        } else if ($data['type'] == 'puzzleinfo') {
+            $renderer->nocache();
+            $this->renderPuzzleinfo($renderer, $data['parameters']);
         } else {
             return false;
         }
@@ -148,7 +166,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             foreach ($teams as $team) {
                 $renderer->doc .= '<div class="team-item' .
                         (--$capacity == 0 ? ' separator' : '') . '">';
-                
+
                 $renderer->doc .= '<h3>' . hsc($team['name']) . '';
                 $renderer->doc .= '<span class="team-info' .
                         ($team['state'] == auth_plugin_gameteam::STATE_PAID ? ' paid' : '') . '">' .
@@ -169,31 +187,14 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
 
     private function renderUpload(Doku_Renderer &$renderer) {
         $user = $_SERVER['REMOTE_USER'];
-        list($volumeId, $teamId) = $this->helper->parseUsername($user, null);
-
-        $map = array(
-            '@USER@' => $user,
-            '@YEAR@' => $this->getConf('upload_year'),
-            '@TEAMID@' => $teamId,
-        );
-
         $template = rawLocale('kachnupload');
-        $text = str_replace(array_keys($map), array_values($map), $template);
+
+        $text = $this->expandFileTemplate($template, $this->getConf('upload_year'), $user);
 
         $renderer->doc .= p_render('xhtml', p_get_instructions($text), $info);
     }
 
     private function renderPuzzles(Doku_Renderer &$renderer, $additional, $parameters) {
-        $stmt = $this->helper->getConnection()->prepare('select *
-            from team
-            where volume_id = :volume_id
-            and state <> :state
-            order by name');
-        $stmt->bindValue('volume_id', $parameters['volume_id']);
-        $stmt->bindValue('state', auth_plugin_gameteam::STATE_CANCELLED);
-        $stmt->execute();
-        $teams = $stmt->fetchAll();
-
         $teamFiles = array();
         search($teamFiles, mediaFN($parameters['root']), function(&$data, $base, $file, $type, $lvl, $opts) {
                     if ($type == 'd') {
@@ -212,6 +213,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
 
         $code = '';
         $first = true;
+        $teams = $this->getPuzzleTeams($parameters['volume_id']);
         foreach ($teams as $team) {
             if ($first) {
                 $first = false;
@@ -221,13 +223,47 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             $teamIdVolume = $team['team_id_volume'];
             $fileId = isset($teamFiles[$teamIdVolume]) ? $teamFiles[$teamIdVolume] : null;
             if ($fileId) {
-                $code .= '  * {{' . $fileId . '|' . hsc($team['name']) . '}}';
+                $code .= '  * {{' . $fileId . '|' . self::sanitize($team['name'], true) . '}}';
             } else {
-                $code .= '  * ' . hsc($team['name']);
+                $code .= '  * ' . self::sanitize($team['name']);
             }
         }
 
         $code .= $additional;
+
+        $renderer->doc .= p_render('xhtml', p_get_instructions($code), $info);
+    }
+
+    private function renderPuzzleinfo(Doku_Renderer &$renderer, $parameters) {
+        $template = $parameters['file_template'];
+        $uploadYear = $this->getConf('upload_year');
+        $volumeId = $parameters['volume_id'];
+
+        $teams = $this->getPuzzleTeams($volumeId);
+        $code = "^ ID ^ Tým ^ Šifra ^ Tajenka ^ Postup ^\n";
+        foreach ($teams as $team) {
+            $teamId = $team['team_id_volume'];
+            $user = $this->helper->decorateUsername($teamId, $volumeId);
+            $fileId = $this->expandFileTemplate($template, $uploadYear, $user);
+
+            // authorization should be checked on the page with the table itself
+            // but one more check here cannot do any wrong
+            $auth = auth_quickaclcheck(getNS($fileId) . ':*');
+            if ($auth < AUTH_READ) {
+                continue;
+            }
+            $metadata = $this->upload_helper->get_metadata($fileId);
+            $code .= '| ' . $teamId . ' ';
+            $code .= '| ' . self::sanitize($team['name'], true) . ' ';
+            if (!$metadata) {
+                $code .= "| -- | -- | -- |\n";
+            } else {
+                $code .= '| {{' . $fileId . '|' . date('Y-m-d H:i:s', $metadata['timestamp']) . '}} ';
+                $code .= "| " . self::sanitize($metadata['result']) . " ";
+                $code .= "| " . self::sanitize($metadata['solution'], true) . " ";
+                $code .= "|\n";
+            }
+        }
 
         $renderer->doc .= p_render('xhtml', p_get_instructions($code), $info);
     }
@@ -256,6 +292,40 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             }
         }
         return $params;
+    }
+
+    private function getPuzzleTeams($volumeId) {
+        $stmt = $this->helper->getConnection()->prepare('select *
+            from team
+            where volume_id = :volume_id
+            and state <> :state
+            order by name');
+        $stmt->bindValue('volume_id', $volumeId);
+        $stmt->bindValue('state', auth_plugin_gameteam::STATE_CANCELLED);
+        $stmt->execute();
+        $teams = $stmt->fetchAll();
+        return $teams;
+    }
+
+    private function expandFileTemplate($template, $uploadYear, $user) {
+        list($volumeId, $teamId) = $this->helper->parseUsername($user, null);
+        $map = array(
+            '@USER@' => $user,
+            '@YEAR@' => $uploadYear,
+            '@TEAMID@' => $teamId,
+        );
+
+        return str_replace(array_keys($map), array_values($map), $template);
+    }
+
+    private static function sanitize($text, $allow_syntax = false) {
+        $text = preg_replace('/\r?\n/', '\\\\\ ', $text);
+        if ($allow_syntax) {
+            $text = preg_replace('/([<>])/', '<nowiki>$1</nowiki>', $text);
+        } else {
+            $text = "<nowiki>$text</nowiki>";
+        }
+        return $text;
     }
 
 }
