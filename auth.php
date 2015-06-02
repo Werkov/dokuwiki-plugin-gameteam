@@ -303,7 +303,7 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
             }
         }
 
-        $this->lastCreatedUser = $this->volumeId . self::LOGIN_SEPARATOR . $teamIdVolume;
+        $this->lastCreatedUser = $this->helper->decorateUsername($teamIdVolume, $this->volumeId);
         return true;
     }
 
