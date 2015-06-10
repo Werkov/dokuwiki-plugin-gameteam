@@ -202,7 +202,7 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
 
     private function loadTeamInfo($username) {
         $defaultVolumeId = $this->getConf('volume_id');
-        list($volumeId, $teamIdVolume) = $this->helper->parseUsername($user, $defaultVolumeId);
+        list($volumeId, $teamIdVolume) = $this->helper->parseUsername($username, $defaultVolumeId);
         $connection = $this->helper->getConnection();
         $stmt = $connection->prepare('select * from team where volume_id = :volume_id and team_id_volume = :team_id_volume');
         $stmt->bindValue('volume_id', $volumeId);
