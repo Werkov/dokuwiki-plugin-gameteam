@@ -161,8 +161,10 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         }
 
         if (count($teams)) {
+            $stats = $this->teamStats($teams);
             $capacity = $this->getConf('capacity');
-            $renderer->doc .= '<p>Počet týmů: ' . count($teams) . '</p>';
+            $renderer->doc .= '<p>Počet týmů: ' . $stats['count'] .
+                ', platících: ' . $stats['paid'] . '</p>';
             foreach ($teams as $team) {
                 $renderer->doc .= '<div class="team-item' .
                         (--$capacity == 0 ? ' separator' : '') . '">';
@@ -183,6 +185,20 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         } else {
             $renderer->doc .= '<p>Žádné týmy.</p>';
         }
+    }
+
+    private function teamStats($teams) {
+        $stats['paid'] = 0;
+        $stats['count'] = 0;
+
+        foreach ($teams as $team) {
+            $stats['count'] += 1;
+            if ($team['state'] == auth_plugin_gameteam::STATE_PAID) {
+                $stats['paid'] += 1;
+            }
+        }
+
+        return $stats;
     }
 
     private function renderUpload(Doku_Renderer &$renderer) {
