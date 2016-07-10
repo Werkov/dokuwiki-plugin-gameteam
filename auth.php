@@ -426,7 +426,7 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      * @param array with cost (4-31), salt (22 chars)
      * @return string 60 chars long
      */
-    private static function hash($password, array $options = NULL) {
+    public static function hash($password, array $options = NULL) {
         $cost = isset($options['cost']) ? (int) $options['cost'] : self::BCRYPT_COST;
         $salt = isset($options['salt']) ? (string) $options['salt'] : self::randomSalt(22);
         if (PHP_VERSION_ID < 50307) {
