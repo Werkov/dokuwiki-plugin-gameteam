@@ -13,6 +13,7 @@ if (!defined('DOKU_INC'))
 class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
 
     const LOGIN_PLACEHOLDER = '__LOGIN__';
+    const CREDS_DELIMITER = ';';
     const BCRYPT_COST = 10;
     const STATE_REGISTERED = '00';
     const STATE_PAID = '10';
@@ -25,6 +26,10 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
     private $volumeId;
     private $superuserLogin;
     private $superuserPassword;
+    /**
+     * @var login => hash
+     */
+    private $superusers = array();
     private $lastCreatedUser = null;
 
     /**
@@ -50,8 +55,14 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
         $this->success = true;
 
         $this->volumeId = $this->getConf('volume_id');
-        $this->superuserLogin = $this->getConf('superuser_login');
-        $this->superuserPassword = $this->getConf('superuser_password');
+
+        $logins = explode(self::CREDS_DELIMITER, $this->getConf('superuser_login'));
+        $passwords = explode(self::CREDS_DELIMITER, $this->getConf('superuser_password'));
+
+        /* If counts don't match, stay safe and keep superusers array empty */
+        if (count($logins) == count($passwords)) {
+            $this->superusers = array_combine($logins, $passwords);
+        }
     }
 
     /**
@@ -64,8 +75,8 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      * @return  bool
      */
     public function checkPass($user, $pass) {
-        if ($user === $this->superuserLogin) {
-            $hash = $this->superuserPassword;
+        if (array_key_exists($user,  $this->superusers)) {
+            $hash = $this->superusers[$user];
         } else {
             list($volumeId, $teamIdVolume) = $this->helper->parseUsername($user, $this->volumeId);
 
@@ -103,9 +114,9 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
      * @return  array containing user data or false
      */
     public function getUserData($user) {
-        if ($user === $this->superuserLogin) {
+        if (array_key_exists($user,  $this->superusers)) {
             return array(
-                'name' => $this->superuserLogin,
+                'name' => $user,
                 'mail' => '',
                 'grps' => array('admin'),
             );
@@ -213,7 +224,11 @@ class auth_plugin_gameteam extends DokuWiki_Auth_Plugin {
     public function cleanUser($user) {
         if($user === self::LOGIN_PLACEHOLDER && $this->lastCreatedUser) {
             return $this->lastCreatedUser;
-        } elseif (!($user === self::LOGIN_PLACEHOLDER || $user === '' || $user === $this->superuserLogin)) {
+        } elseif (!(
+            $user === self::LOGIN_PLACEHOLDER ||
+            $user === '' ||
+            array_key_exists($user, $this->superusers
+        ))) {
             return $this->helper->decorateUsername($user, $this->volumeId);
         }
         return $user;
