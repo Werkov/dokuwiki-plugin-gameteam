@@ -1,0 +1,4 @@
+div.dokuwiki div.puzzles li > ul {
+    display: none;
+}
+

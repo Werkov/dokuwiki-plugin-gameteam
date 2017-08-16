@@ -92,6 +92,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             $data['parameters'] = $this->parseParameters($parameterString, array(
                 'root' => null,
                 'volume_id' => null,
+                'file_template' => null,
             ));
             $data['additional'] = $additionalString;
         }
@@ -211,6 +212,10 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
     }
 
     private function renderPuzzles(Doku_Renderer &$renderer, $additional, $parameters) {
+        $uploadTemplate = isset($parameters['file_template']) ? $parameters['file_template'] : null;
+        $uploadYear = $this->getConf('upload_year');
+        $volumeId = $parameters['volume_id'];
+
         $teamFiles = array();
         search($teamFiles, mediaFN($parameters['root']), function(&$data, $base, $file, $type, $lvl, $opts) {
                     if ($type == 'd') {
@@ -229,7 +234,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
 
         $code = '';
         $first = true;
-        $teams = $this->getPuzzleTeams($parameters['volume_id'], auth_plugin_gameteam::STATE_PAID);
+        $teams = $this->getPuzzleTeams($volumeId, auth_plugin_gameteam::STATE_PAID);
         foreach ($teams as $team) {
             if ($first) {
                 $first = false;
@@ -238,8 +243,23 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             }
             $teamIdVolume = $team['team_id_volume'];
             $fileId = isset($teamFiles[$teamIdVolume]) ? $teamFiles[$teamIdVolume] : null;
+            $solution = '';
+            $solutionLink = '';
+
+            if ($uploadTemplate) {
+                $user = $this->helper->decorateUsername($teamIdVolume, $volumeId);
+                $uploadFileId = $this->expandFileTemplate($uploadTemplate, $uploadYear, $user);
+                $metadata = $this->upload_helper->get_metadata($uploadFileId);
+                if ($metadata) {
+                    $solution .= '    * řešení: ' . self::sanitize($metadata['result']) . "\n";
+                    $solution .= '    * postup: ' . self::sanitize($metadata['solution'], true) . "";
+
+                    $solutionLink = ' ([[#puzzle-solution|řešení]])' . "\n";
+                }
+            }
             if ($fileId) {
-                $code .= '  * {{' . $fileId . '|' . self::sanitize($team['name'], true) . '}}';
+                $code .= '  * {{' . $fileId . '|' . self::sanitize($team['name'], true) . '}}'. $solutionLink;
+                $code .= $solution;
             } else {
                 $code .= '  * ' . self::sanitize($team['name']);
             }
@@ -247,7 +267,9 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
 
         $code .= $additional;
 
+        $renderer->doc .= "<div class=\"puzzles\">\n";
         $renderer->doc .= p_render('xhtml', p_get_instructions($code), $info);
+        $renderer->doc .= "</div>\n";
     }
 
     private function renderPuzzleinfo(Doku_Renderer &$renderer, $parameters) {
