@@ -229,7 +229,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
 
         $code = '';
         $first = true;
-        $teams = $this->getPuzzleTeams($parameters['volume_id']);
+        $teams = $this->getPuzzleTeams($parameters['volume_id'], auth_plugin_gameteam::STATE_PAID);
         foreach ($teams as $team) {
             if ($first) {
                 $first = false;
@@ -310,14 +310,19 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         return $params;
     }
 
-    private function getPuzzleTeams($volumeId) {
+    private function getPuzzleTeams($volumeId, $filterState = null) {
+        $stateCond = $filterState !== null ? " and state = :state2" : "";
+
         $stmt = $this->helper->getConnection()->prepare('select *
             from team
             where volume_id = :volume_id
-            and state <> :state
+            and state <> :state' . $stateCond . '
             order by name');
         $stmt->bindValue('volume_id', $volumeId);
         $stmt->bindValue('state', auth_plugin_gameteam::STATE_CANCELLED);
+        if ($filterState !== null) {
+            $stmt->bindValue('state2', $filterState);
+        }
         $stmt->execute();
         $teams = $stmt->fetchAll();
         return $teams;
