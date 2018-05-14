@@ -174,6 +174,7 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
         $defaultSpec = array(
             'default' => null,
             'type' => 'text',
+            'attrs' => array(),
         );
 
         foreach ($fieldspec as $name => $spec) {
@@ -185,10 +186,10 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
             $value = $INPUT->post->str($name, $spec['default'], true);
             switch ($spec['type']) {
                 case 'bool':
-                    $field = form_makeCheckboxField($name, $value, $spec['label'], '', 'block');
+                    $field = form_makeCheckboxField($name, $value, $spec['label'], '', 'block', $spec['attrs']);
                     break;
                 default:
-                    $field = form_makeTextField($name, $value, $spec['label'], '', 'block');
+                    $field = form_makeTextField($name, $value, $spec['label'], '', 'block', $spec['attrs']);
                     break;
             }
             $form->addElement($field);
