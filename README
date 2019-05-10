@@ -2,6 +2,30 @@ gameteam Plugin for DokuWiki
 
 Experimental plugin for managing game teams.
 
+## Team and team member attributes ##
+
+Teams are stored in the table `team` and team members are stored in the table
+`player`. Please refer to the actual database for the up to date database
+scheme.
+
+Registration form is constructed based on `teamfields` config option of the
+gameteam plugin. It is JSON map in the form:
+
+    field_name => field_specification
+
+A field_name ending with '_[0-9]+' can be replicated (with different number)
+and are stored into the `player` table, the other fields are stored in the
+`team` table.
+
+field_specification is another map that must have `label` attribute (display in
+the form).
+Furthermore `type` can specify what data type the field is (implemented types
+in [modify_user_form][1] function).
+The last `attrs` attribute is a map that is passed verbatim to Dokuwiki form
+creation functions, use with caution.
+
+[1] https://github.com/Werkov/dokuwiki-plugin-gameteam/blob/master/action.php#L187
+
 ## TODO ##
 
   * limit no. of registered teams
