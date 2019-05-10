@@ -188,6 +188,9 @@ class action_plugin_gameteam extends DokuWiki_Action_Plugin {
                 case 'bool':
                     $field = form_makeCheckboxField($name, $value, $spec['label'], '', 'block', $spec['attrs']);
                     break;
+                case 'int':
+                    $field = form_makeField('number', $name, $value, $spec['label'], '', 'block', $spec['attrs']);
+                    break;
                 default:
                     $field = form_makeTextField($name, $value, $spec['label'], '', 'block', $spec['attrs']);
                     break;
