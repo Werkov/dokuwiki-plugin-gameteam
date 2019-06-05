@@ -278,7 +278,7 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
         $volumeId = $parameters['volume_id'];
 
         $teams = $this->getPuzzleTeams($volumeId);
-        $code = "^ ID ^ Tým ^ Šifra ^ Tajenka ^ Postup ^\n";
+        $code = "^ ID ^ Tým ^ Šifra ^ Tajenka ^ Postup ^ Testeři ^\n";
         foreach ($teams as $team) {
             $teamId = $team['team_id_volume'];
             $user = $this->helper->decorateUsername($teamId, $volumeId);
@@ -294,11 +294,12 @@ class syntax_plugin_gameteam extends DokuWiki_Syntax_Plugin {
             $code .= '| ' . $teamId . ' ';
             $code .= '| ' . self::sanitize($team['name'], true) . ' ';
             if (!$metadata) {
-                $code .= "| -- | -- | -- |\n";
+                $code .= "| -- | -- | -- | -- |\n";
             } else {
                 $code .= '| {{' . $fileId . '|' . date('Y-m-d H:i:s', $metadata['timestamp']) . '}} ';
                 $code .= "| " . self::sanitize($metadata['result']) . " ";
                 $code .= "| " . self::sanitize($metadata['solution'], true) . " ";
+                $code .= "| " . self::sanitize(isset($metadata['testing']) ? $metadata['testing'] : '–') . " ";
                 $code .= "|\n";
             }
         }
